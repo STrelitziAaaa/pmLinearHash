@@ -1,0 +1,30 @@
+{
+  "tasks": [
+    {
+      "type": "cppbuild",
+      "label": "cpp_build",
+      "command": "/usr/bin/g++",
+      "args": [
+        "${file}",
+        "${fileDirname}/pml_hash.cc",
+        // "-I",
+        // "${fileDirname}",
+        "-o",
+        "${fileDirname}/${fileBasenameNoExtension}",
+        "-lm",
+        "-lpmem",
+        "-g",
+        // "-Wall",
+      ],
+      "options": {
+        "cwd": "/usr/bin"
+      },
+      "problemMatcher": [
+        "$gcc"
+      ],
+      "group": "build",
+      "detail": "Generated task by Debugger"
+    },
+  ],
+  "version": "2.0.0"
+}
