@@ -9,13 +9,16 @@
 #include <iostream>
 #include <vector>
 
-#define TABLE_SIZE 1                                // adjustable
+#define TABLE_SIZE 4                                // adjustable
 #define HASH_SIZE 16                                // adjustable
 #define FILE_SIZE 1024 * 1024 * 16                  // 16 MB adjustable
 #define BITMAP_SIZE 1024 * 1024 / sizeof(pm_table)  // for gc of overflow table
 #define N_0 4
 #define N_LEVEL(level) (pow(2, level) * N_0)
+
+// typically we will use -1,but unfortunately the dataType is uint64_t
 #define NEXT_IS_NONE 999999999
+#define VALUE_NOT_FOUND NEXT_IS_NONE
 using namespace std;
 
 typedef struct metadata {
@@ -64,7 +67,6 @@ typedef struct pm_table {
       (start++)->init();
     }
   }
-
   // return -1 if full, it won't go to the next_overflow_table
   int append(const uint64_t& key, const uint64_t& value) {
     if (fill_num == TABLE_SIZE) {
@@ -81,6 +83,16 @@ typedef struct pm_table {
     kv_arr[pos] = entry::makeEntry(key, value);
     return 0;
   }
+  // return -1 if not exists , never go to the overflow table
+  int pos(const uint64_t& key) {
+    for (int i = 0; i < fill_num; i++) {
+      if (kv_arr[i].key == key) {
+        return i;
+      }
+    }
+    return -1;
+  }
+  uint64_t getValue(int idx) { return kv_arr[idx].value; }
 } pm_table;
 
 // persistent memory linear hash
@@ -104,6 +116,7 @@ class PMLHash {
 
   uint64_t splitOldIdx();
   uint64_t splitNewIdx();
+  uint64_t getRealHashIdx(const uint64_t& key);
   int appendAutoOf(pm_table* startTable, const entry& kv);
   int insertAutoOf(pm_table* startTable, const entry& kv, uint64_t pos);
   int updateAfterSplit(pm_table* startTable, uint64_t fill_num);

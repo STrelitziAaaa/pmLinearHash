@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <map>
 #include "util.h"
+
 /**
  * PMLHash::PMLHash
  *
@@ -174,6 +175,14 @@ uint64_t PMLHash::splitNewIdx() {
   return meta->next + N_LEVEL(meta->level);
 }
 
+uint64_t PMLHash::getRealHashIdx(const uint64_t& key) {
+  uint64_t idx = hashFunc(key, meta->level);
+  if (idx < meta->next) {
+    idx = hashFunc(key, meta->level + 1);
+  }
+  return idx;
+}
+
 // append auto overflow
 // return 1 if needToSplit , it will automatically allocate overflowTable
 int PMLHash::appendAutoOf(pm_table* startTable, const entry& kv) {
@@ -244,6 +253,7 @@ int PMLHash::cntTablesSince(pm_table* startTable) {
   }
   return cnt;
 }
+
 /**
  * PMLHash
  *
@@ -258,10 +268,8 @@ int PMLHash::cntTablesSince(pm_table* startTable) {
  * if the hash table is full then split is triggered
  */
 int PMLHash::insert(const uint64_t& key, const uint64_t& value) {
-  uint64_t idx = hashFunc(key, meta->level);
-  if (idx < meta->next) {
-    idx = hashFunc(key, meta->level + 1);
-  }
+  uint64_t idx = getRealHashIdx(key);
+
   if (appendAutoOf(getNmTableFromIdx(idx), entry::makeEntry(key, value))) {
     split();
   }
@@ -271,12 +279,29 @@ int PMLHash::insert(const uint64_t& key, const uint64_t& value) {
  * PMLHash
  *
  * @param  {uint64_t} key   : the searched key
- * @param  {uint64_t} value : return value if found
+ * @param  {uint64_t} value : return value if found , else VALUE_NOT_FOUND
  * @return {int}            : 0 found, -1 not found
  *
  * search the target entry and return the value
  */
-int PMLHash::search(const uint64_t& key, uint64_t& value) {}
+int PMLHash::search(const uint64_t& key, uint64_t& value) {
+  uint64_t idx = getRealHashIdx(key);
+
+  pm_table* t = getNmTableFromIdx(idx);
+  while (1) {
+    int pos = t->pos(key);
+    if (pos >= 0) {
+      value = t->getValue(pos);
+      return 0;
+    }
+    if (t->next_offset == NEXT_IS_NONE) {
+      break;
+    }
+    t = getOfTableFromIdx(t->next_offset);
+  }
+  value = VALUE_NOT_FOUND;
+  return -1;
+}
 
 /**
  * PMLHash
@@ -313,7 +338,7 @@ int PMLHash::showPrivateData() {
 int PMLHash::showKV() {
   for (int i = 0; i < meta->size; i++) {
     pm_table* t = getNmTableFromIdx(i);
-    printf("table:%d ", i);
+    printf("Table:%d ", i);
     while (1) {
       for (int j = 0; j < t->fill_num; j++) {
         printf("%zu,%zu|", t->kv_arr[j].key, t->kv_arr[j].value);
