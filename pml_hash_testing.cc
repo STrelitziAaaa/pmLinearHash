@@ -9,6 +9,7 @@ PMLHash* TestHashConstruct() {
 int TestHashInsert(PMLHash* f) {
   for (uint64_t i = 1; i <= HASH_SIZE; i++) {
     f->insert(i, i);
+    f->showBitMap();
   }
   printf("After Insert:\n");
   f->showKV();
@@ -49,12 +50,27 @@ int TestHashRemove(PMLHash* f) {
   f->showKV();
 }
 
+int TestBitMap(PMLHash* f) {
+  bitmap_st* bm = f->getBitMapForTest();
+  bm->init();
+  f->showBitMap();
+  bm->set(0);
+  bm->set(1);
+  f->showBitMap();
+  printf("first bit pos:%d\n", bm->findFirstAvailable());
+  bm->reset(0);
+  f->showBitMap();
+  printf("first bit pos:%d\n", bm->findFirstAvailable());
+}
+
 int main() {
   // you have to return the original object,instead of use `=` in
   // TestHashConstruct(&f) because it will call `unmap` if it die;
   PMLHash* f = TestHashConstruct();
+  f->showBitMap();
   TestHashInsert(f);
   TestHashSearch(f);
   TestHashUpdate(f);
   TestHashRemove(f);
+  f->showBitMap();
 }

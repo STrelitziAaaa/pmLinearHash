@@ -1,18 +1,22 @@
 #ifndef PML_HASH_H
 #define PML_HASH_H
-
 #include <libpmem.h>
 #include <math.h>
 #include <memory.h>
 #include <stdint.h>
 #include <unistd.h>
+#include <bitset>
+#include <cstdio>
+#include <cstdlib>
 #include <iostream>
 #include <vector>
 
-#define TABLE_SIZE 4                                // adjustable
-#define HASH_SIZE 16                                // adjustable
-#define FILE_SIZE 1024 * 1024 * 16                  // 16 MB adjustable
-#define BITMAP_SIZE 1024 * 1024 / sizeof(pm_table)  // for gc of overflow table
+#define TABLE_SIZE 1                // adjustable
+#define HASH_SIZE 6                 // adjustable
+#define FILE_SIZE 1024 * 1024 * 16  // 16 MB adjustable
+// #define BITMAP_SIZE 1024 * 1024 / sizeof(pm_table)  // for gc of overflow
+// table
+#define BITMAP_SIZE 32  // for gc of overflow table
 #define N_0 4
 #define N_LEVEL(level) (pow(2, level) * N_0)
 
@@ -94,8 +98,19 @@ typedef struct pm_table {
   }
   entry& index(int pos) { return kv_arr[pos]; }
   uint64_t getValue(int pos) { return kv_arr[pos].value; }
-  // entry* getEntryPtr(int idx) { return &kv_arr[idx]; }
 } pm_table;
+
+typedef struct bitmap_st {
+  bitset<BITMAP_SIZE> bitmap;  // 1: available 0: occupied
+
+ public:
+  int init() { bitmap.set(); }
+  // set pos to 0
+  int set(int pos) { bitmap.set(pos, 0); }
+  string to_string() { return bitmap.to_string(); }
+  int reset(int pos) { bitmap.set(pos, 1); }
+  int findFirstAvailable() { return bitmap._Find_first(); }
+} bitmap_st;
 
 // persistent memory linear hash
 class PMLHash {
@@ -105,16 +120,19 @@ class PMLHash {
                         // array
   metadata* meta;       // virtual address of metadata
   pm_table* table_arr;  // virtual address of hash table array
-
-  uint8_t* bitmap;
+  bitmap_st* bitmap;    // for gc
 
   void split();
   uint64_t hashFunc(const uint64_t& key, const size_t& hash_size);
   pm_table* newOverflowTable();
   pm_table* newOverflowTable(pm_table* pre);
+  int freeOverflowTable(uint64_t idx);
+  int freeOverflowTable(pm_table* t);
   pm_table* newNormalTable();
   pm_table* getNmTableFromIdx(uint64_t idx);
   pm_table* getOfTableFromIdx(uint64_t idx);
+  uint64_t getIdxFromTable(pm_table* start, pm_table* t);
+  uint64_t getIdxFromOfTable(pm_table* t);
 
   uint64_t splitOldIdx();
   uint64_t splitNewIdx();
@@ -139,6 +157,8 @@ class PMLHash {
 
   int showPrivateData();
   int showKV(const char* prefix = "");
+  int showBitMap();
+  bitmap_st* getBitMapForTest() { return bitmap; }
 };
 
 #endif

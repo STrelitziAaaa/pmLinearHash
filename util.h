@@ -13,9 +13,10 @@ bool chkAndCrtFile(const char* filePath) {
     return true;
   } else {
     if (errno == ENOENT) {
+      // note: the file mode may be set as 0644 even if we give 0666
+      // todo: here we need to mkdir
       close(creat(filePath, 0666));
       printf("file created\n");
-      // todo: here we need to mkdir
       return false;
     } else {
       perror("stat");

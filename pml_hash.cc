@@ -17,8 +17,8 @@
 PMLHash::PMLHash(const char* file_path) {
   // you must check whether file exists first
   // because pmem_map_file with PMEM_FILE_CREATE|PMEM_FILE_EXCL will fail
-  // directly if file exists instead of setting errno so first stat() will help
-  // to avoid invoking pmem_map_file twice
+  // directly if file exists instead of setting errno
+  // so first stat() will help to avoid invoking pmem_map_file twice
   bool fileIsExist = chkAndCrtFile(file_path);
 
   size_t mapped_len;
@@ -32,39 +32,27 @@ PMLHash::PMLHash(const char* file_path) {
   printf("mapped_len:%zu , %f mb, ptr:%p\n", mapped_len,
          double(mapped_len) / (1024 * 1024), f);
 
-  // here we will use mmap to substitude
-  // int fd = open(file_path, O_RDWR);
-  // if (fd < 0) {
-  //   perror("fd");
-  //   exit(-1);
-  // }
-  // char* f =
-  //     (char*)mmap(0, FILE_SIZE, PROT_WRITE | PROT_READ, MAP_PRIVATE, fd, 0);
-  // printf("start_addr:%p, align: 2:%d 4:%d 8:%d 16:%d 32:%d 64:%d 128:%d\n",
-  // f,
-  //        (intptr_t)f % 2, (intptr_t)f % 4, (intptr_t)f % 8, (intptr_t)f % 16,
-  //        (intptr_t)f % 32, (intptr_t)f % 64, (intptr_t)f % 128);
-  this->start_addr = (void*)f;
-  this->overflow_addr = (void*)(f + FILE_SIZE / 2);
-  this->meta = (metadata*)(f);
-  this->table_arr = (pm_table*)((char*)(this->meta) + sizeof(metadata));
-  this->bitmap = (uint8_t*)(f + sizeof(meta));
+  start_addr = (void*)f;
+  overflow_addr = (void*)(f + FILE_SIZE / 2);
+  meta = (metadata*)(f);
+  bitmap = (bitmap_st*)(meta + 1);
+  table_arr = (pm_table*)(bitmap + 1);
 
-#define DEBUG
   if (fileIsExist) {
-    // recover
+// recover
+#define DEBUG
 #ifdef DEBUG
     bzero(f, FILE_SIZE);
-    bzero(this->bitmap, BITMAP_SIZE);
-    this->meta->init();
-    pm_table::initArray(this->table_arr, N_0);
+    meta->init();
+    bitmap->init();
+    pm_table::initArray(table_arr, N_0);
 #endif
   } else {
     // init
     bzero(f, FILE_SIZE);
-    bzero(this->bitmap, BITMAP_SIZE);
-    this->meta->init();
-    pm_table::initArray(this->table_arr, N_0);
+    meta->init();
+    bitmap->init();
+    pm_table::initArray(table_arr, N_0);
   }
 }
 
@@ -100,7 +88,6 @@ void PMLHash::split() {
     if (curTable->next_offset != NEXT_IS_NONE) {
       // it has overflow table
       assert(curTable->fill_num == TABLE_SIZE);
-      // todo: next_offset is not w.r.t overflow_addr
       curTable = getOfTableFromIdx(curTable->next_offset);
     } else {
       break;
@@ -136,18 +123,34 @@ uint64_t PMLHash::hashFunc(const uint64_t& key, const size_t& level) {
  * @fixed: just use overflow_addr + meta.overflow_num to compute the new addr
  */
 pm_table* PMLHash::newOverflowTable() {
-  pm_table* table = (pm_table*)((pm_table*)overflow_addr + meta->overflow_num);
+  uint64_t offset = bitmap->findFirstAvailable();
+  bitmap->set(offset);
+
+  pm_table* table = (pm_table*)((pm_table*)overflow_addr + offset);
   table->init();
   meta->overflow_num++;
   return table;
 }
 
 pm_table* PMLHash::newOverflowTable(pm_table* pre) {
-  pm_table* table = (pm_table*)((pm_table*)overflow_addr + meta->overflow_num);
+  uint64_t offset = bitmap->findFirstAvailable();
+  bitmap->set(offset);
+  pre->next_offset = offset;
+
+  pm_table* table = (pm_table*)((pm_table*)overflow_addr + offset);
   table->init();
-  pre->next_offset = meta->overflow_num;
   meta->overflow_num++;
   return table;
+}
+
+// if this table have previousTable, you should set previousTable.next_offset
+int PMLHash::freeOverflowTable(uint64_t idx) {
+  bitmap->reset(idx);
+  meta->overflow_num--;
+}
+
+int PMLHash::freeOverflowTable(pm_table* t) {
+  return freeOverflowTable(getIdxFromOfTable(t));
 }
 
 // it will use meta.size to address , and init table
@@ -165,6 +168,15 @@ pm_table* PMLHash::getNmTableFromIdx(uint64_t idx) {
 // OfTable : Overflow Table
 pm_table* PMLHash::getOfTableFromIdx(uint64_t idx) {
   return (pm_table*)((pm_table*)overflow_addr + idx);
+}
+
+uint64_t PMLHash::getIdxFromTable(pm_table* start, pm_table* t) {
+  return (t - start);
+}
+
+// get index from overflow table
+uint64_t PMLHash::getIdxFromOfTable(pm_table* t) {
+  return getIdxFromTable((pm_table*)overflow_addr, t);
 }
 
 uint64_t PMLHash::splitOldIdx() {
@@ -190,8 +202,8 @@ int PMLHash::appendAutoOf(pm_table* startTable, const entry& kv) {
   while (cur->append(kv.key, kv.value) == -1) {
     // check if we can go through
     if (cur->next_offset == NEXT_IS_NONE) {
-      cur->next_offset = meta->overflow_num;
-      cur = newOverflowTable();
+      // cur->next_offset = meta->overflow_num;
+      cur = newOverflowTable(cur);
       needTosplit = 1;
     } else {
       cur = getOfTableFromIdx(cur->next_offset);
@@ -220,26 +232,23 @@ int PMLHash::updateAfterSplit(pm_table* startTable, uint64_t fill_num) {
   // todo: wait to optimizing, the code below is ugly
   // first count original number of overflow tables
   int n = cntTablesSince(startTable);
-  if (n == 0) {
-    startTable->fill_num = fill_num % (TABLE_SIZE + 1);
-    return 0;
-  }
+  int n_fill = fill_num / (TABLE_SIZE + 1);
   // we shouldn't go to the last overflow table
   // in case of the last overflow table becoming empty
-  for (int i = 0; i < n - 1; i++) {
-    // assert(startTable->fill_num == TABLE_SIZE);
-    // you must set it full
-    // unless use different function to update new/old table
+  for (int i = 0; i < n_fill; i++) {
+    // you must set it full because newTable.fill_num = 0
     startTable->fill_num = TABLE_SIZE;
     startTable = getOfTableFromIdx(startTable->next_offset);
   }
-  if (fill_num % TABLE_SIZE == 0) {
-    pm_table* pre = startTable;
-    startTable = getOfTableFromIdx(startTable->next_offset);
-    pre->next_offset = NEXT_IS_NONE;
-  }
   startTable->fill_num = fill_num % (TABLE_SIZE + 1);
-  startTable->next_offset = NEXT_IS_NONE;
+  pm_table* lastTable = startTable;
+
+  for (int i = n_fill; i < n; i++) {
+    uintptr_t idx = startTable->next_offset;
+    startTable = getOfTableFromIdx(startTable->next_offset);
+    freeOverflowTable(idx);
+  }
+  lastTable->next_offset = NEXT_IS_NONE;
 }
 
 // never include startTable itself
@@ -359,6 +368,7 @@ int PMLHash::remove(const uint64_t& key) {
     t->insert(kv.key, kv.value, i - 1);
   }
   if (--(t->fill_num) == 0 && pre != nullptr) {
+    freeOverflowTable(t);
     pre->next_offset = NEXT_IS_NONE;
   }
   return 0;
@@ -418,4 +428,8 @@ int PMLHash::showKV(const char* prefix) {
     }
     printf("\n");
   }
+}
+
+int PMLHash::showBitMap() {
+  printf("%s\n", bitmap->to_string().c_str());
 }
