@@ -1,5 +1,5 @@
-#ifndef PML_HASH
-#define PML_HASH
+#ifndef PML_HASH_H
+#define PML_HASH_H
 
 #include <libpmem.h>
 #include <math.h>
@@ -92,7 +92,9 @@ typedef struct pm_table {
     }
     return -1;
   }
-  uint64_t getValue(int idx) { return kv_arr[idx].value; }
+  entry& index(int pos) { return kv_arr[pos]; }
+  uint64_t getValue(int pos) { return kv_arr[pos].value; }
+  // entry* getEntryPtr(int idx) { return &kv_arr[idx]; }
 } pm_table;
 
 // persistent memory linear hash
@@ -122,6 +124,9 @@ class PMLHash {
   int updateAfterSplit(pm_table* startTable, uint64_t fill_num);
   int cntTablesSince(pm_table* startTable);
 
+  entry* searchEntry(const uint64_t& key);
+  pm_table* searchPage(const uint64_t& key, pm_table** previousTable);
+
  public:
   PMLHash() = delete;
   PMLHash(const char* file_path);
@@ -133,7 +138,7 @@ class PMLHash {
   int update(const uint64_t& key, const uint64_t& value);
 
   int showPrivateData();
-  int showKV();
+  int showKV(const char* prefix = "");
 };
 
 #endif

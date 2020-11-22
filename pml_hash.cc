@@ -66,7 +66,6 @@ PMLHash::PMLHash(const char* file_path) {
     this->meta->init();
     pm_table::initArray(this->table_arr, N_0);
   }
-  printf("---\nmetaData: level:%lu,size:%lu\n---\n", meta->level, meta->size);
 }
 
 /**
@@ -254,6 +253,52 @@ int PMLHash::cntTablesSince(pm_table* startTable) {
   return cnt;
 }
 
+// return nullptr if not found
+entry* PMLHash::searchEntry(const uint64_t& key) {
+  uint64_t idx = getRealHashIdx(key);
+
+  pm_table* t = getNmTableFromIdx(idx);
+  while (1) {
+    int pos = t->pos(key);
+    if (pos >= 0) {
+      return &(t->index(pos));
+    }
+    if (t->next_offset == NEXT_IS_NONE) {
+      break;
+    }
+    t = getOfTableFromIdx(t->next_offset);
+  }
+  return nullptr;
+}
+
+/**
+ * @brief this will just be used in `remove()`
+ * @param key
+ * @param previousTable the previous table of the return table
+ * @return pm_table* where key is in
+ */
+pm_table* PMLHash::searchPage(const uint64_t& key, pm_table** previousTable) {
+  uint64_t idx = getRealHashIdx(key);
+
+  pm_table* t = getNmTableFromIdx(idx);
+  pm_table* pre = nullptr;
+  while (1) {
+    int pos = t->pos(key);
+    if (pos >= 0) {
+      if (previousTable != nullptr) {
+        *previousTable = pre;
+      }
+      return t;
+    }
+    if (t->next_offset == NEXT_IS_NONE) {
+      break;
+    }
+    pre = t;
+    t = getOfTableFromIdx(t->next_offset);
+  }
+  return nullptr;
+}
+
 /**
  * PMLHash
  *
@@ -285,22 +330,12 @@ int PMLHash::insert(const uint64_t& key, const uint64_t& value) {
  * search the target entry and return the value
  */
 int PMLHash::search(const uint64_t& key, uint64_t& value) {
-  uint64_t idx = getRealHashIdx(key);
-
-  pm_table* t = getNmTableFromIdx(idx);
-  while (1) {
-    int pos = t->pos(key);
-    if (pos >= 0) {
-      value = t->getValue(pos);
-      return 0;
-    }
-    if (t->next_offset == NEXT_IS_NONE) {
-      break;
-    }
-    t = getOfTableFromIdx(t->next_offset);
+  entry* e = searchEntry(key);
+  if (e == nullptr) {
+    return -1;
   }
-  value = VALUE_NOT_FOUND;
-  return -1;
+  value = e->value;
+  return 0;
 }
 
 /**
@@ -312,7 +347,22 @@ int PMLHash::search(const uint64_t& key, uint64_t& value) {
  * remove the target entry, move entries after forward
  * if the overflow table is empty, remove it from hash
  */
-int PMLHash::remove(const uint64_t& key) {}
+int PMLHash::remove(const uint64_t& key) {
+  // you should find its previous table
+  pm_table* pre = nullptr;
+  pm_table* t = searchPage(key, &pre);
+  if (t == nullptr) {
+    return -1;
+  }
+  for (int i = t->pos(key) + 1; i < t->fill_num; i++) {
+    entry& kv = t->index(i);
+    t->insert(kv.key, kv.value, i - 1);
+  }
+  if (--(t->fill_num) == 0 && pre != nullptr) {
+    pre->next_offset = NEXT_IS_NONE;
+  }
+  return 0;
+}
 
 /**
  * PMLHash
@@ -323,23 +373,39 @@ int PMLHash::remove(const uint64_t& key) {}
  *
  * update an existing entry
  */
-int PMLHash::update(const uint64_t& key, const uint64_t& value) {}
+int PMLHash::update(const uint64_t& key, const uint64_t& value) {
+  entry* e = searchEntry(key);
+  if (e == nullptr) {
+    return -1;
+  }
+  e->value = value;
+  return 0;
+}
 
 // -----------------------------------
 
 int PMLHash::showPrivateData() {
-  printf("start_addr:%p\n", this->start_addr);
-  printf("overflow_addr:%p\n", this->overflow_addr);
-  printf("meta_addr:%p\n", this->meta);
-  printf("table_addr:%p\n", this->table_arr);
-  printf("bitmap_addr:%p\n", this->bitmap);
+  printf("-----\n");
+  printf("PMLHASH Config:\n");
+  printf("- start_addr:%p\n", start_addr);
+  printf("- overflow_addr:%p\n", overflow_addr);
+  printf("- meta_addr:%p\n", meta);
+  printf("  - size:%zu level:%zu next:%zu overflow_num:%zu\n", meta->size,
+         meta->level, meta->next, meta->overflow_num);
+  printf("- table_addr:%p\n", table_arr);
+  showKV("  - ");
+  printf("- bitmap_addr:%p\n", bitmap);
+  printf("-----\n");
 }
 
-int PMLHash::showKV() {
+int PMLHash::showKV(const char* prefix) {
   for (int i = 0; i < meta->size; i++) {
     pm_table* t = getNmTableFromIdx(i);
-    printf("Table:%d ", i);
+    printf("%sTable:%d ", prefix, i);
     while (1) {
+      if (t->fill_num == 0) {
+        printf("empty");
+      }
       for (int j = 0; j < t->fill_num; j++) {
         printf("%zu,%zu|", t->kv_arr[j].key, t->kv_arr[j].value);
       }
