@@ -1,5 +1,5 @@
-#ifndef UTIL
-#define UTIL
+#ifndef UTIL_H
+#define UTIL_H
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>

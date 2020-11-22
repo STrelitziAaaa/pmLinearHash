@@ -81,7 +81,6 @@ void PMLHash::split() {
     for (int i = 0; i < curTable->fill_num; i++) {
       entry& kv = curTable->kv_arr[i];
       uint64_t idx = hashFunc(kv.key, meta->level + 1);
-      // todo: insert into overflow table and clear next_offset
       insertAutoOf(getNmTableFromIdx(idx), kv, fill_num[idx]);
       fill_num[idx]++;
     }
@@ -177,6 +176,14 @@ uint64_t PMLHash::getIdxFromTable(pm_table* start, pm_table* t) {
 // get index from overflow table
 uint64_t PMLHash::getIdxFromOfTable(pm_table* t) {
   return getIdxFromTable((pm_table*)overflow_addr, t);
+}
+
+bool PMLHash::checkDupKey(const uint64_t& key) {
+  entry* e = searchEntry(key);
+  if (e != nullptr) {
+    return true;
+  }
+  return false;
 }
 
 uint64_t PMLHash::splitOldIdx() {
@@ -322,8 +329,11 @@ pm_table* PMLHash::searchPage(const uint64_t& key, pm_table** previousTable) {
  * if the hash table is full then split is triggered
  */
 int PMLHash::insert(const uint64_t& key, const uint64_t& value) {
-  uint64_t idx = getRealHashIdx(key);
+  if (checkDupKey(key)) {
+    return -1;
+  }
 
+  uint64_t idx = getRealHashIdx(key);
   if (appendAutoOf(getNmTableFromIdx(idx), entry::makeEntry(key, value))) {
     split();
   }

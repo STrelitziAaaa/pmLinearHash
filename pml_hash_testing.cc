@@ -8,15 +8,25 @@ PMLHash* TestHashConstruct() {
 
 int TestHashInsert(PMLHash* f) {
   for (uint64_t i = 1; i <= HASH_SIZE; i++) {
-    f->insert(i, i);
-    f->showBitMap();
+    if (f->insert(i, i) != -1) {
+      printf("|Insert| key:%zu,val:%zu\n", i, i);
+    } else {
+      printf("|Insert| key:%zu,val:%zu InsertErr\n", i, i);
+    }
+  }
+
+  uint64_t i = 1;
+  if (f->insert(i, i) != -1) {
+    printf("|Insert| key:%zu,val:%zu\n", i, i);
+  } else {
+    printf("|Insert| key:%zu,val:%zu InsertErr\n", i, i);
   }
   printf("After Insert:\n");
   f->showKV();
 }
 
 int TestHashSearch(PMLHash* f) {
-  for (uint64_t i = 1; i <= HASH_SIZE + 5; i++) {
+  for (uint64_t i = 1; i <= HASH_SIZE + 10; i += 5) {
     uint64_t val;
     // you may need to check returnValue != -1
     if (f->search(i, val) != -1) {
@@ -28,7 +38,7 @@ int TestHashSearch(PMLHash* f) {
 }
 
 int TestHashUpdate(PMLHash* f) {
-  for (uint64_t i = 1; i <= HASH_SIZE + 5; i++) {
+  for (uint64_t i = 1; i <= HASH_SIZE + 10; i += 5) {
     uint64_t val = i + 1;
     if (f->update(i, val) == -1) {
       printf("|Update| key:%zu Not Found\n", i);
@@ -40,7 +50,7 @@ int TestHashUpdate(PMLHash* f) {
 }
 
 int TestHashRemove(PMLHash* f) {
-  for (uint64_t i = 1; i <= HASH_SIZE + 5; i++) {
+  for (uint64_t i = 1; i <= HASH_SIZE + 10; i += 5) {
     if (f->remove(i) == -1) {
       printf("|Remove| key:%zu Not Found\n", i);
     } else {
@@ -72,5 +82,9 @@ int main() {
   TestHashSearch(f);
   TestHashUpdate(f);
   TestHashRemove(f);
+  f->showBitMap();
+
+  f->remove(15);
+  f->showKV();
   f->showBitMap();
 }

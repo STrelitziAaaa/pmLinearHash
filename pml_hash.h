@@ -11,8 +11,8 @@
 #include <iostream>
 #include <vector>
 
-#define TABLE_SIZE 1                // adjustable
-#define HASH_SIZE 6                 // adjustable
+#define TABLE_SIZE 3                // adjustable
+#define HASH_SIZE 16                 // adjustable
 #define FILE_SIZE 1024 * 1024 * 16  // 16 MB adjustable
 // #define BITMAP_SIZE 1024 * 1024 / sizeof(pm_table)  // for gc of overflow
 // table
@@ -133,6 +133,8 @@ class PMLHash {
   pm_table* getOfTableFromIdx(uint64_t idx);
   uint64_t getIdxFromTable(pm_table* start, pm_table* t);
   uint64_t getIdxFromOfTable(pm_table* t);
+
+  bool checkDupKey(const uint64_t& key);
 
   uint64_t splitOldIdx();
   uint64_t splitNewIdx();
