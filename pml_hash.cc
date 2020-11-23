@@ -37,22 +37,18 @@ PMLHash::PMLHash(const char* file_path) {
   meta = (metadata*)(f);
   bitmap = (bitmap_st*)(meta + 1);
   table_arr = (pm_table*)(bitmap + 1);
+  // mutx = (pthread_mutex_t*)malloc(sizeof(pthread_mutex_t));
+  // mutx = new pthread_mutex_t();
 
   if (fileIsExist) {
 // recover
 #define DEBUG
 #ifdef DEBUG
-    bzero(f, FILE_SIZE);
-    meta->init();
-    bitmap->init();
-    pm_table::initArray(table_arr, N_0);
+    initMappedMem();
 #endif
   } else {
     // init
-    bzero(f, FILE_SIZE);
-    meta->init();
-    bitmap->init();
-    pm_table::initArray(table_arr, N_0);
+    initMappedMem();
   }
 }
 
@@ -123,6 +119,13 @@ uint64_t PMLHash::hashFunc(const uint64_t& key, const size_t& level) {
  */
 pm_table* PMLHash::newOverflowTable() {
   uint64_t offset = bitmap->findFirstAvailable();
+  if (offset == BITMAP_SIZE) {
+    // after throw this msg, the db may still can insert other kv, but we still
+    // view it as full
+    // we just throw error,instead of returning nullptr
+
+    throw Error("memory size limit");
+  }
   bitmap->set(offset);
 
   pm_table* table = (pm_table*)((pm_table*)overflow_addr + offset);
@@ -132,13 +135,8 @@ pm_table* PMLHash::newOverflowTable() {
 }
 
 pm_table* PMLHash::newOverflowTable(pm_table* pre) {
-  uint64_t offset = bitmap->findFirstAvailable();
-  bitmap->set(offset);
-  pre->next_offset = offset;
-
-  pm_table* table = (pm_table*)((pm_table*)overflow_addr + offset);
-  table->init();
-  meta->overflow_num++;
+  pm_table* table = newOverflowTable();
+  pre->next_offset = getIdxFromOfTable(table);
   return table;
 }
 
@@ -178,6 +176,10 @@ uint64_t PMLHash::getIdxFromOfTable(pm_table* t) {
   return getIdxFromTable((pm_table*)overflow_addr, t);
 }
 
+uint64_t PMLHash::getIdxFromNmTable(pm_table* t) {
+  return getIdxFromTable((pm_table*)start_addr, t);
+}
+
 bool PMLHash::checkDupKey(const uint64_t& key) {
   entry* e = searchEntry(key);
   if (e != nullptr) {
@@ -202,7 +204,7 @@ uint64_t PMLHash::getRealHashIdx(const uint64_t& key) {
 }
 
 // append auto overflow
-// return 1 if needToSplit , it will automatically allocate overflowTable
+// return 1 if needToSplit , it will automatically allocate new overflowTable
 int PMLHash::appendAutoOf(pm_table* startTable, const entry& kv) {
   pm_table* cur = startTable;
   int needTosplit = 0;
@@ -221,6 +223,7 @@ int PMLHash::appendAutoOf(pm_table* startTable, const entry& kv) {
 
 // insert auto overflow
 // it will allocate new overflow table OR just go through
+// it never change fill_num
 int PMLHash::insertAutoOf(pm_table* startTable, const entry& kv, uint64_t pos) {
   uint64_t n = pos / TABLE_SIZE;
   while (n > 0) {
@@ -261,8 +264,18 @@ int PMLHash::updateAfterSplit(pm_table* startTable, uint64_t fill_num) {
 // never include startTable itself
 int PMLHash::cntTablesSince(pm_table* startTable) {
   int cnt = 0;
+  bool up_half = 0;
+  if (getIdxFromNmTable(startTable) < N_LEVEL(meta->level)) {
+    up_half = 1;
+  }
   while (startTable->next_offset != NEXT_IS_NONE) {
-    assert(startTable->fill_num == TABLE_SIZE);
+    // assert
+    if (up_half) {
+      assert(startTable->fill_num == TABLE_SIZE);
+    } else {
+      assert(startTable->fill_num == 0);
+    }
+
     startTable = getOfTableFromIdx(startTable->next_offset);
     cnt++;
   }
@@ -329,13 +342,18 @@ pm_table* PMLHash::searchPage(const uint64_t& key, pm_table** previousTable) {
  * if the hash table is full then split is triggered
  */
 int PMLHash::insert(const uint64_t& key, const uint64_t& value) {
+  std::lock_guard<std::mutex> lock(mutx);
   if (checkDupKey(key)) {
     return -1;
   }
 
   uint64_t idx = getRealHashIdx(key);
-  if (appendAutoOf(getNmTableFromIdx(idx), entry::makeEntry(key, value))) {
-    split();
+  try {
+    if (appendAutoOf(getNmTableFromIdx(idx), entry::makeEntry(key, value))) {
+      split();
+    }
+  } catch (Error e) {
+    return -1;
   }
 }
 
@@ -349,6 +367,7 @@ int PMLHash::insert(const uint64_t& key, const uint64_t& value) {
  * search the target entry and return the value
  */
 int PMLHash::search(const uint64_t& key, uint64_t& value) {
+  std::lock_guard<std::mutex> lock(mutx);
   entry* e = searchEntry(key);
   if (e == nullptr) {
     return -1;
@@ -367,6 +386,7 @@ int PMLHash::search(const uint64_t& key, uint64_t& value) {
  * if the overflow table is empty, remove it from hash
  */
 int PMLHash::remove(const uint64_t& key) {
+  std::lock_guard<std::mutex> lock(mutx);
   // you should find its previous table
   pm_table* pre = nullptr;
   pm_table* t = searchPage(key, &pre);
@@ -394,12 +414,31 @@ int PMLHash::remove(const uint64_t& key) {
  * update an existing entry
  */
 int PMLHash::update(const uint64_t& key, const uint64_t& value) {
+  std::lock_guard<std::mutex> lock(mutx);
   entry* e = searchEntry(key);
   if (e == nullptr) {
     return -1;
   }
   e->value = value;
   return 0;
+}
+
+// it will init mapped memory, call it after setting startAddr
+int PMLHash::initMappedMem() {
+  bzero(start_addr, FILE_SIZE);
+  meta->init();
+  bitmap->init();
+  pm_table::initArray(table_arr, N_0);
+}
+
+int PMLHash::recoverMappedMen() {
+  raise("Function not inplemented");
+}
+
+// remove all
+int PMLHash::clear() {
+  std::lock_guard<std::mutex> lock(mutx);
+  initMappedMem();
 }
 
 // -----------------------------------
@@ -419,6 +458,7 @@ int PMLHash::showPrivateData() {
 }
 
 int PMLHash::showKV(const char* prefix) {
+  std::lock_guard<std::mutex> lock(mutx);
   for (int i = 0; i < meta->size; i++) {
     pm_table* t = getNmTableFromIdx(i);
     printf("%sTable:%d ", prefix, i);
@@ -441,5 +481,6 @@ int PMLHash::showKV(const char* prefix) {
 }
 
 int PMLHash::showBitMap() {
+  std::lock_guard<std::mutex> lock(mutx);
   printf("%s\n", bitmap->to_string().c_str());
 }

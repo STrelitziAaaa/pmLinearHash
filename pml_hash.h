@@ -3,6 +3,8 @@
 #include <libpmem.h>
 #include <math.h>
 #include <memory.h>
+#include <mutex>
+// #include <pthread.h>
 #include <stdint.h>
 #include <unistd.h>
 #include <bitset>
@@ -12,11 +14,11 @@
 #include <vector>
 
 #define TABLE_SIZE 3                // adjustable
-#define HASH_SIZE 16                 // adjustable
+#define HASH_SIZE 16                // adjustable
 #define FILE_SIZE 1024 * 1024 * 16  // 16 MB adjustable
 // #define BITMAP_SIZE 1024 * 1024 / sizeof(pm_table)  // for gc of overflow
 // table
-#define BITMAP_SIZE 32  // for gc of overflow table
+#define BITMAP_SIZE 128  // for gc of overflow table
 #define N_0 4
 #define N_LEVEL(level) (pow(2, level) * N_0)
 
@@ -79,6 +81,7 @@ typedef struct pm_table {
     kv_arr[fill_num++] = entry::makeEntry(key, value);
     return 0;
   }
+
   // note: this will not increase fill_num, you have to set it yourself
   int insert(const uint64_t& key, const uint64_t& value, uint64_t pos) {
     if (pos >= TABLE_SIZE) {
@@ -112,6 +115,35 @@ typedef struct bitmap_st {
   int findFirstAvailable() { return bitmap._Find_first(); }
 } bitmap_st;
 
+typedef enum pm_errno {
+  Success = 0,
+  DupKey,
+  MemoryLimit,
+  NotFound,
+} pm_errno;
+
+class pm_err {
+ private:
+  pm_errno errNo;
+
+ public:
+  pm_err() : errNo(Success) {}
+  std::string string() {
+    switch (errNo) {
+      case Success:
+        return "success";
+      case DupKey:
+        return "duplicate key";
+      case MemoryLimit:
+        return "memory size limit";
+      case NotFound:
+        return "key not found";
+      default:
+        return "unkownn error";
+    }
+  }
+};
+
 // persistent memory linear hash
 class PMLHash {
  private:
@@ -121,6 +153,8 @@ class PMLHash {
   metadata* meta;       // virtual address of metadata
   pm_table* table_arr;  // virtual address of hash table array
   bitmap_st* bitmap;    // for gc
+  std::mutex mutx;
+  pm_err innerErr;
 
   void split();
   uint64_t hashFunc(const uint64_t& key, const size_t& hash_size);
@@ -133,6 +167,7 @@ class PMLHash {
   pm_table* getOfTableFromIdx(uint64_t idx);
   uint64_t getIdxFromTable(pm_table* start, pm_table* t);
   uint64_t getIdxFromOfTable(pm_table* t);
+  uint64_t getIdxFromNmTable(pm_table* t);
 
   bool checkDupKey(const uint64_t& key);
 
@@ -156,6 +191,10 @@ class PMLHash {
   int search(const uint64_t& key, uint64_t& value);
   int remove(const uint64_t& key);
   int update(const uint64_t& key, const uint64_t& value);
+
+  int initMappedMem();
+  int recoverMappedMen();
+  int clear();
 
   int showPrivateData();
   int showKV(const char* prefix = "");
