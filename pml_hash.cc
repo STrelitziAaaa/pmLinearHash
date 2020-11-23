@@ -342,7 +342,7 @@ pm_table* PMLHash::searchPage(const uint64_t& key, pm_table** previousTable) {
  * if the hash table is full then split is triggered
  */
 int PMLHash::insert(const uint64_t& key, const uint64_t& value) {
-  std::lock_guard<std::mutex> lock(mutx);
+  std::lock_guard<std::recursive_mutex> lock(mutx);
   if (checkDupKey(key)) {
     return -1;
   }
@@ -367,7 +367,7 @@ int PMLHash::insert(const uint64_t& key, const uint64_t& value) {
  * search the target entry and return the value
  */
 int PMLHash::search(const uint64_t& key, uint64_t& value) {
-  std::lock_guard<std::mutex> lock(mutx);
+  std::lock_guard<std::recursive_mutex> lock(mutx);
   entry* e = searchEntry(key);
   if (e == nullptr) {
     return -1;
@@ -386,7 +386,7 @@ int PMLHash::search(const uint64_t& key, uint64_t& value) {
  * if the overflow table is empty, remove it from hash
  */
 int PMLHash::remove(const uint64_t& key) {
-  std::lock_guard<std::mutex> lock(mutx);
+  std::lock_guard<std::recursive_mutex> lock(mutx);
   // you should find its previous table
   pm_table* pre = nullptr;
   pm_table* t = searchPage(key, &pre);
@@ -414,7 +414,7 @@ int PMLHash::remove(const uint64_t& key) {
  * update an existing entry
  */
 int PMLHash::update(const uint64_t& key, const uint64_t& value) {
-  std::lock_guard<std::mutex> lock(mutx);
+  std::lock_guard<std::recursive_mutex> lock(mutx);
   entry* e = searchEntry(key);
   if (e == nullptr) {
     return -1;
@@ -437,13 +437,14 @@ int PMLHash::recoverMappedMen() {
 
 // remove all
 int PMLHash::clear() {
-  std::lock_guard<std::mutex> lock(mutx);
+  std::lock_guard<std::recursive_mutex> lock(mutx);
   initMappedMem();
 }
 
 // -----------------------------------
 
 int PMLHash::showPrivateData() {
+  std::lock_guard<std::recursive_mutex> lock(mutx);
   printf("-----\n");
   printf("PMLHASH Config:\n");
   printf("- start_addr:%p\n", start_addr);
@@ -458,7 +459,7 @@ int PMLHash::showPrivateData() {
 }
 
 int PMLHash::showKV(const char* prefix) {
-  std::lock_guard<std::mutex> lock(mutx);
+  std::lock_guard<std::recursive_mutex> lock(mutx);
   for (int i = 0; i < meta->size; i++) {
     pm_table* t = getNmTableFromIdx(i);
     printf("%sTable:%d ", prefix, i);
@@ -481,6 +482,6 @@ int PMLHash::showKV(const char* prefix) {
 }
 
 int PMLHash::showBitMap() {
-  std::lock_guard<std::mutex> lock(mutx);
+  std::lock_guard<std::recursive_mutex> lock(mutx);
   printf("%s\n", bitmap->to_string().c_str());
 }

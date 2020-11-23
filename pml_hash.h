@@ -153,7 +153,7 @@ class PMLHash {
   metadata* meta;       // virtual address of metadata
   pm_table* table_arr;  // virtual address of hash table array
   bitmap_st* bitmap;    // for gc
-  std::mutex mutx;
+  std::recursive_mutex mutx;
   pm_err innerErr;
 
   void split();
