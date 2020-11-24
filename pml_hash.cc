@@ -7,6 +7,8 @@
 #include <map>
 #include "util.h"
 
+thread_local pm_err pmError;
+
 /**
  * PMLHash::PMLHash
  *
@@ -152,6 +154,9 @@ int PMLHash::freeOverflowTable(pm_table* t) {
 
 // it will use meta.size to address , and init table
 pm_table* PMLHash::newNormalTable() {
+  if (meta->size >= NORMAL_TAB_SIZE) {
+    throw "memory size limit";
+  }
   pm_table* table = (pm_table*)(table_arr + meta->size);
   table->init();
   meta->size++;
@@ -269,13 +274,6 @@ int PMLHash::cntTablesSince(pm_table* startTable) {
     up_half = 1;
   }
   while (startTable->next_offset != NEXT_IS_NONE) {
-    // assert
-    if (up_half) {
-      assert(startTable->fill_num == TABLE_SIZE);
-    } else {
-      assert(startTable->fill_num == 0);
-    }
-
     startTable = getOfTableFromIdx(startTable->next_offset);
     cnt++;
   }
@@ -443,7 +441,7 @@ int PMLHash::clear() {
 
 // -----------------------------------
 
-int PMLHash::showPrivateData() {
+int PMLHash::showConfig() {
   std::lock_guard<std::recursive_mutex> lock(mutx);
   printf("-----\n");
   printf("PMLHASH Config:\n");
@@ -455,6 +453,13 @@ int PMLHash::showPrivateData() {
   printf("- table_addr:%p\n", table_arr);
   showKV("  - ");
   printf("- bitmap_addr:%p\n", bitmap);
+  printf("TABLE_SIZE:%d\n", TABLE_SIZE);
+  printf("HASH_SIZE:%d\n", HASH_SIZE);
+  printf("FILE_SIZE:%d\n", FILE_SIZE);
+  printf("BITMAP_SIZE:%d\n", BITMAP_SIZE);
+  printf("OVERFLOW_TABL_SIZE:%d\n", OVERFLOW_TABL_SIZE);
+  printf("NORMAL_TAB_SIZE:%d\n", int32_t(NORMAL_TAB_SIZE));
+  printf("N_0:%d\n", N_0);
   printf("-----\n");
 }
 

@@ -13,12 +13,14 @@
 #include <iostream>
 #include <vector>
 
-#define TABLE_SIZE 3                // adjustable
+#define TABLE_SIZE 1                // adjustable
 #define HASH_SIZE 16                // adjustable
 #define FILE_SIZE 1024 * 1024 * 16  // 16 MB adjustable
-// #define BITMAP_SIZE 1024 * 1024 / sizeof(pm_table)  // for gc of overflow
-// table
+// #define BITMAP_SIZE 1024 * 1024 / sizeof(pm_table)  // for gc of overflowT
 #define BITMAP_SIZE 128  // for gc of overflow table
+#define NORMAL_TAB_SIZE \
+  (((FILE_SIZE / 2) - sizeof(bitmap_st) - sizeof(metadata)) / sizeof(pm_table))
+#define OVERFLOW_TABL_SIZE BITMAP_SIZE
 #define N_0 4
 #define N_LEVEL(level) (pow(2, level) * N_0)
 
@@ -101,6 +103,13 @@ typedef struct pm_table {
   }
   entry& index(int pos) { return kv_arr[pos]; }
   uint64_t getValue(int pos) { return kv_arr[pos].value; }
+  int show() {
+    printf("fill_num:%zu , next_offset:%zu :", fill_num, next_offset);
+    for (auto& i : kv_arr) {
+      printf("%zu,%zu| ", i.key, i.value);
+    }
+    printf("\n");
+  }
 } pm_table;
 
 typedef struct bitmap_st {
@@ -154,7 +163,6 @@ class PMLHash {
   pm_table* table_arr;  // virtual address of hash table array
   bitmap_st* bitmap;    // for gc
   std::recursive_mutex mutx;
-  pm_err innerErr;
 
   void split();
   uint64_t hashFunc(const uint64_t& key, const size_t& hash_size);
@@ -196,7 +204,7 @@ class PMLHash {
   int recoverMappedMen();
   int clear();
 
-  int showPrivateData();
+  int showConfig();
   int showKV(const char* prefix = "");
   int showBitMap();
   bitmap_st* getBitMapForTest() { return bitmap; }
