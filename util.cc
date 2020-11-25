@@ -49,7 +49,8 @@ int runYCSBBenchmark(const char* filePath, PMLHash* f) {
 
     } else {
       uint64_t value;
-      f->search(key, value);
+      assert(f->search(key, value) != -1);
+      assert(value == key);
     }
   }
   auto t_end = std::chrono::high_resolution_clock::now();
@@ -194,4 +195,77 @@ int TestMultiThread(PMLHash* f) {
   }
   f->showKV();
   f->showBitMap();
+}
+
+int AssertTEST(PMLHash* f) {
+  const int N = 200000;
+
+  printf("=========Assert Test==========\n");
+  printf("Prepare %d KVs\n", N);
+
+  for (int i = 0; i < N; i++) {
+    uint64_t value;
+    assert(f->search(i, value) == -1);
+    assert(f->update(i, value) == -1);
+    assert(f->remove(i) == -1);
+  }
+
+  // insert
+  for (int i = 0; i < N; i++) {
+    assert(f->insert(i, i) != -1);
+    assert(f->insert(i, i) == -1);
+    uint64_t value = N;
+    assert(f->search(i, value) != -1);
+    assert(i == value);
+  }
+  // search again
+  for (int i = 0; i < N; i++) {
+    uint64_t value = N;
+    assert(f->search(i, value) != -1);
+    assert(i == value);
+  }
+  // update
+  for (int i = 0; i < N; i++) {
+    uint64_t value;
+    assert(f->update(i, i + 1) != -1);
+    assert(f->search(i, value) != -1);
+    assert(value == i + 1);
+  }
+  // search again
+  for (int i = 0; i < N; i++) {
+    uint64_t value;
+    assert(f->search(i, value) != -1);
+    assert(value == i + 1);
+  }
+  // remove
+  for (int i = 0; i < N; i++) {
+    assert(f->remove(i) != -1);
+    assert(f->remove(i) == -1);
+    uint64_t value;
+    assert(f->search(i, value) == -1);
+  }
+  // search again
+  for (int i = 0; i < N; i++) {
+    uint64_t value;
+    assert(f->search(i, value) == -1);
+  }
+  printf("=========Assert OK============\n");
+}
+
+int BenchmarkYCSB(PMLHash* f) {
+  loadYCSBBenchmark("./benchmark/10w-rw-0-100-load.txt", f);
+  runYCSBBenchmark("./benchmark/10w-rw-0-100-load.txt", f);
+  f->clear();
+  loadYCSBBenchmark("./benchmark/10w-rw-25-75-load.txt", f);
+  runYCSBBenchmark("./benchmark/10w-rw-25-75-load.txt", f);
+  f->clear();
+  loadYCSBBenchmark("./benchmark/10w-rw-50-50-load.txt", f);
+  runYCSBBenchmark("./benchmark/10w-rw-50-50-load.txt", f);
+  f->clear();
+  loadYCSBBenchmark("./benchmark/10w-rw-75-25-load.txt", f);
+  runYCSBBenchmark("./benchmark/10w-rw-75-25-load.txt", f);
+  f->clear();
+  loadYCSBBenchmark("./benchmark/10w-rw-100-0-load.txt", f);
+  runYCSBBenchmark("./benchmark/10w-rw-100-0-load.txt", f);
+  f->clear();
 }

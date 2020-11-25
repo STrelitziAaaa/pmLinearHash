@@ -126,7 +126,7 @@ pm_table* PMLHash::newOverflowTable() {
     // view it as full
     // we just throw error,instead of returning nullptr
 
-    throw Error("memory size limit");
+    throw Error("newOverflowTable: memory size limit");
   }
   bitmap->set(offset);
 
@@ -155,7 +155,7 @@ int PMLHash::freeOverflowTable(pm_table* t) {
 // it will use meta.size to address , and init table
 pm_table* PMLHash::newNormalTable() {
   if (meta->size >= NORMAL_TAB_SIZE) {
-    throw "memory size limit";
+    throw Error("newNormalTable: memory size limit");
   }
   pm_table* table = (pm_table*)(table_arr + meta->size);
   table->init();
@@ -342,6 +342,7 @@ pm_table* PMLHash::searchPage(const uint64_t& key, pm_table** previousTable) {
 int PMLHash::insert(const uint64_t& key, const uint64_t& value) {
   std::lock_guard<std::recursive_mutex> lock(mutx);
   if (checkDupKey(key)) {
+    // printf("error: dupKey\n");
     return -1;
   }
 
@@ -350,7 +351,8 @@ int PMLHash::insert(const uint64_t& key, const uint64_t& value) {
     if (appendAutoOf(getNmTableFromIdx(idx), entry::makeEntry(key, value))) {
       split();
     }
-  } catch (Error e) {
+  } catch (Error& e) {
+    printf("error: %s\n", e.what());
     return -1;
   }
 }
@@ -456,10 +458,13 @@ int PMLHash::showConfig() {
   printf("TABLE_SIZE:%d\n", TABLE_SIZE);
   printf("HASH_SIZE:%d\n", HASH_SIZE);
   printf("FILE_SIZE:%d\n", FILE_SIZE);
-  printf("BITMAP_SIZE:%d\n", BITMAP_SIZE);
-  printf("OVERFLOW_TABL_SIZE:%d\n", OVERFLOW_TABL_SIZE);
-  printf("NORMAL_TAB_SIZE:%d\n", int32_t(NORMAL_TAB_SIZE));
+  printf("BITMAP_SIZE:%zu\n", BITMAP_SIZE);
+  printf("OVERFLOW_TAB_SIZE:%zu\n", OVERFLOW_TABL_SIZE);
+  printf("NORMAL_TAB_SIZE:%zu\n", NORMAL_TAB_SIZE);
   printf("N_0:%d\n", N_0);
+  printf("[Support at least %zu KVs <not include overflowTable>]\n",
+         TABLE_SIZE * NORMAL_TAB_SIZE);
+
   printf("-----\n");
 }
 

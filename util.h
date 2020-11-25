@@ -13,14 +13,14 @@
 // check and create file
 bool chkAndCrtFile(const char* filePath);
 
-class Error {
+class Error : public exception {
  private:
   std::string msg;
 
  public:
   Error(std::string msg) : msg(msg) {}
   Error(const char* msg) : msg(msg) {}
-  std::string string() { return msg; };
+  const char* what() const throw() { return msg.c_str(); };
 };
 
 #define raise(...)                                        \
@@ -49,4 +49,6 @@ int TestHashInsert(PMLHash* f);
 int insertWithMsg(PMLHash* f, const uint64_t& key, const uint64_t& value);
 PMLHash* TestHashConstruct();
 
+int AssertTEST(PMLHash* f);
+int BenchmarkYCSB(PMLHash* f);
 #endif
