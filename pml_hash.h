@@ -13,9 +13,9 @@
 #include <iostream>
 #include <vector>
 
-#define TABLE_SIZE 4                // adjustable
-#define HASH_SIZE 16                // adjustable
-#define FILE_SIZE 1024 * 1024 * 16  // 16 MB adjustable
+#define TABLE_SIZE 4                                // adjustable
+#define HASH_SIZE 16                                // adjustable
+#define FILE_SIZE 1024 * 1024 * 16                  // 16 MB adjustable
 #define BITMAP_SIZE 1024 * 1024 / sizeof(pm_table)  // for gc of overflowT
 // #define BITMAP_SIZE 128  // for gc of overflow table
 #define NORMAL_TAB_SIZE \
@@ -113,7 +113,7 @@ typedef struct pm_table {
 } pm_table;
 
 typedef struct bitmap_st {
-  bitset<BITMAP_SIZE> bitmap;  // 1: available 0: occupied
+  std::bitset<BITMAP_SIZE> bitmap;  // 1: available 0: occupied
 
  public:
   int init() { bitmap.set(); }

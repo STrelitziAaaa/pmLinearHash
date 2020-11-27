@@ -12,7 +12,6 @@ int main() {
 
   PMLHash* f = TestHashConstruct();
   AssertTEST(f);
-  
 
   // TestHashInsert(f);
   // TestHashSearch(f);
@@ -24,5 +23,5 @@ int main() {
   // justInsertN(f, 10, 5);
   // TestMultiThread(f);
 
-  BenchmarkYCSB(f);
+  BenchmarkYCSB(f, 10, "../");
 }

@@ -13,17 +13,26 @@
 #include <thread>
 #include "pml_hash.h"
 
+using namespace std;
+
+static inline void assertOk(int x) {
+  assert(x != -1);
+}
+static inline void assertFail(int x) {
+  assert(x == -1);
+}
+
 bool chkAndCrtFile(const char* filePath) {
   struct stat fstate;
   if (!stat(filePath, &fstate)) {
-    printf("file exists\n");
+    printf("pmFile Exists:Recover\n");
     return true;
   } else {
     if (errno == ENOENT) {
       // note: the file mode may be set as 0644 even if we give 0666
       // todo: here we need to mkdir
       close(creat(filePath, 0666));
-      printf("file created\n");
+      printf("pmFile Created:Init\n");
       return false;
     } else {
       perror("stat");
@@ -31,52 +40,94 @@ bool chkAndCrtFile(const char* filePath) {
   }
 }
 
-constexpr uint64_t INSERT = 1;
-constexpr uint64_t READ = 2;
-map<std::string, uint64_t> TypeDict = {{"INSERT", INSERT}, {"READ", READ}};
+// constexpr uint64_t INSERT = 1;
+// constexpr uint64_t READ = 2;
+// map<std::string, uint64_t> TypeDict = {{"INSERT", INSERT}, {"READ", READ}};
 
-int runYCSBBenchmark(const char* filePath, PMLHash* f) {
+int loadYCSBBenchmark(string filePath, PMLHash* f) {
   std::ifstream in_(filePath);
   std::string typeStr;
   uint64_t key;
-  double total;
-
-  auto t_start = std::chrono::high_resolution_clock::now();
-  while (!in_.eof()) {
+  uint64_t cnt = 0;
+  std::vector<uint64_t> keyBuf;
+  while (in_.good()) {
+    cnt++;
     in_ >> typeStr >> key;
-    if (typeStr == "INSERT") {
-      f->insert(key, key);
-
-    } else {
-      uint64_t value;
-      assert(f->search(key, value) != -1);
-      assert(value == key);
-    }
+    keyBuf.push_back(key);
   }
-  auto t_end = std::chrono::high_resolution_clock::now();
-  std::cout
-      << "run " << filePath << " | WallTime: "
-      << std::chrono::duration<double, std::milli>(t_end - t_start).count()
-      << " ms" << std::endl;
-  return 0;
-}
-
-int loadYCSBBenchmark(const char* filePath, PMLHash* f) {
-  std::ifstream in_(filePath);
-  std::string typeStr;
-  uint64_t key;
-  double total;
   auto t_start = std::chrono::high_resolution_clock::now();
-  while (!in_.eof()) {
-    in_ >> typeStr >> key;
-    // std::cout << "insert " << key << std::endl;
+  for (auto& key : keyBuf) {
     f->insert(key, key);
   }
   auto t_end = std::chrono::high_resolution_clock::now();
-  std::cout
-      << "load " << filePath << " | WallTime: "
-      << std::chrono::duration<double, std::milli>(t_end - t_start).count()
-      << " ms" << std::endl;
+  auto dur = std::chrono::duration<double, std::milli>(t_end - t_start).count();
+  std::cout << "load " << filePath << "\tWTime: " << dur << " ms"
+            << "\tOPS: " << cnt / (dur * 1000) << "M"
+            << "\tDelay: " << dur * 1000 / cnt << " ns" << std::endl;
+  return 0;
+}
+
+int runYCSBBenchmark(string filePath, PMLHash* f) {
+  std::ifstream in_(filePath);
+  std::string typeStr;
+  uint64_t key;
+  double cnt = 0;
+  // we can't make a insertBuf and searchBuf
+  // we should make it come randomly
+  std::vector<std::pair<char, uint64_t>> keyBuf;
+  while (in_.good()) {
+    cnt++;
+    in_ >> typeStr >> key;
+    keyBuf.push_back(std::make_pair(TypeDict[typeStr], key));
+  }
+  auto t_start = std::chrono::high_resolution_clock::now();
+  for (auto& key : keyBuf) {
+    if (key.first == INSERT) {
+      f->insert(key.second, key.second);
+    } else {
+      uint64_t value;
+      assert(f->search(key.second, value) != -1);
+      assert(value == key.second);
+    }
+  }
+  auto t_end = std::chrono::high_resolution_clock::now();
+  auto dur = std::chrono::duration<double, std::milli>(t_end - t_start).count();
+  std::cout << "run " << filePath << "\tWTime: " << dur << " ms"
+            << "\tOPS: " << cnt / (dur * 1000) << "M"
+            << "\tDelay: " << dur * 1000 / cnt << " ns" << std::endl;
+  return 0;
+}
+
+int runYCSBBenchmark(string filePath, PMLHash* f, uint64_t n_thread) {
+  std::ifstream in_(filePath);
+  std::string typeStr;
+  uint64_t key;
+  double cnt = 0;
+  // we can't make a insertBuf and searchBuf
+  // we should make it come randomly
+  std::vector<std::pair<char, uint64_t>> keyBuf;
+  while (in_.good()) {
+    cnt++;
+    in_ >> typeStr >> key;
+    keyBuf.push_back(std::make_pair(TypeDict[typeStr], key));
+  }
+  // split work
+  auto t_start = std::chrono::high_resolution_clock::now();
+  size_t size = keyBuf.size();
+  size_t avg = size / n_thread;
+  thread threads[n_thread];
+  for (int i = 0; i < n_thread; i++) {
+    threads[i] =
+        std::move(thread(thread_routine, std::ref(keyBuf), f, i, n_thread));
+  }
+  for (auto& i : threads) {
+    i.join();
+  }
+  auto t_end = std::chrono::high_resolution_clock::now();
+  auto dur = std::chrono::duration<double, std::milli>(t_end - t_start).count();
+  std::cout << "run " << filePath << "\tWTime: " << dur << " ms"
+            << "\tOPS: " << cnt / (dur * 1000) << "M"
+            << "\tDelay: " << dur * 1000 / cnt << " ns" << std::endl;
   return 0;
 }
 
@@ -201,71 +252,102 @@ int AssertTEST(PMLHash* f) {
   const int N = 200000;
 
   printf("=========Assert Test==========\n");
-  printf("Prepare %d KVs\n", N);
-
+  printf("TEST %d KVs\n", N);
+  printf("Check Empty Env...\n");
   for (int i = 0; i < N; i++) {
     uint64_t value;
     assert(f->search(i, value) == -1);
     assert(f->update(i, value) == -1);
     assert(f->remove(i) == -1);
   }
-
   // insert
+  printf("Check Insert&Search...\n");
   for (int i = 0; i < N; i++) {
     assert(f->insert(i, i) != -1);
     assert(f->insert(i, i) == -1);
-    uint64_t value = N;
-    assert(f->search(i, value) != -1);
-    assert(i == value);
-  }
-  // search again
-  for (int i = 0; i < N; i++) {
-    uint64_t value = N;
-    assert(f->search(i, value) != -1);
-    assert(i == value);
+    // search history key&value
+    for (int j = 0; j <= i; j += ASSERT_STEP) {
+      uint64_t value = N;
+      assert(f->search(j, value) != -1);
+      assert(j == value);
+    }
   }
   // update
+  printf("Check Update&Search...\n");
   for (int i = 0; i < N; i++) {
-    uint64_t value;
     assert(f->update(i, i + 1) != -1);
-    assert(f->search(i, value) != -1);
-    assert(value == i + 1);
-  }
-  // search again
-  for (int i = 0; i < N; i++) {
-    uint64_t value;
-    assert(f->search(i, value) != -1);
-    assert(value == i + 1);
+    // search history key&value
+    for (int j = 0; j <= i; j += ASSERT_STEP) {
+      uint64_t value = N;
+      assert(f->search(j, value) != -1);
+      assert(value == j + 1);
+      // can't insert dupKey
+      assert(f->insert(j, j) == -1);
+    }
   }
   // remove
+  printf("Check Remove&Search...\n");
   for (int i = 0; i < N; i++) {
     assert(f->remove(i) != -1);
-    assert(f->remove(i) == -1);
     uint64_t value;
-    assert(f->search(i, value) == -1);
+    for (int j = 0; j <= i; j += ASSERT_STEP) {
+      assert(f->remove(j) == -1);
+      assert(f->search(j, value) == -1);
+      assert(f->update(j, j + 1) == -1);
+    }
   }
-  // search again
+  // clear
+  printf("Check Clear&Search...\n");
+  f->clear();
   for (int i = 0; i < N; i++) {
     uint64_t value;
     assert(f->search(i, value) == -1);
   }
+
   printf("=========Assert OK============\n");
 }
 
-int BenchmarkYCSB(PMLHash* f) {
-  loadYCSBBenchmark("./benchmark/10w-rw-0-100-load.txt", f);
-  runYCSBBenchmark("./benchmark/10w-rw-0-100-load.txt", f);
+int BenchmarkYCSB(PMLHash* f, uint64_t n_thread, string path_prefix) {
+  printf("=========YCSB Benchmark=======\n");
+  printf("注:时间基本为纯Insert/Search时间,不包括读文件\tn_thread=%zu\n",
+         n_thread);
   f->clear();
-  loadYCSBBenchmark("./benchmark/10w-rw-25-75-load.txt", f);
-  runYCSBBenchmark("./benchmark/10w-rw-25-75-load.txt", f);
+  loadYCSBBenchmark(path_prefix + "./benchmark/10w-rw-0-100-load.txt", f);
+  runYCSBBenchmark(path_prefix + "./benchmark/10w-rw-0-100-load.txt", f,
+                   n_thread);
   f->clear();
-  loadYCSBBenchmark("./benchmark/10w-rw-50-50-load.txt", f);
-  runYCSBBenchmark("./benchmark/10w-rw-50-50-load.txt", f);
+  loadYCSBBenchmark(path_prefix + "./benchmark/10w-rw-25-75-load.txt", f);
+  runYCSBBenchmark(path_prefix + "./benchmark/10w-rw-25-75-load.txt", f,
+                   n_thread);
   f->clear();
-  loadYCSBBenchmark("./benchmark/10w-rw-75-25-load.txt", f);
-  runYCSBBenchmark("./benchmark/10w-rw-75-25-load.txt", f);
+  loadYCSBBenchmark(path_prefix + "./benchmark/10w-rw-50-50-load.txt", f);
+  runYCSBBenchmark(path_prefix + "./benchmark/10w-rw-50-50-load.txt", f,
+                   n_thread);
   f->clear();
-  loadYCSBBenchmark("./benchmark/10w-rw-100-0-load.txt", f);
-  runYCSBBenchmark("./benchmark/10w-rw-100-0-load.txt", f);
+  loadYCSBBenchmark(path_prefix + "./benchmark/10w-rw-75-25-load.txt", f);
+  runYCSBBenchmark(path_prefix + "./benchmark/10w-rw-75-25-load.txt", f,
+                   n_thread);
   f->clear();
+  loadYCSBBenchmark(path_prefix + "./benchmark/10w-rw-100-0-load.txt", f);
+  runYCSBBenchmark(path_prefix + "./benchmark/10w-rw-100-0-load.txt", f,
+                   n_thread);
+  f->clear();
+  printf("==========Benchmark OK=========\n");
+}
+
+int thread_routine(vector<std::pair<char, uint64_t>>& buf,
+                   PMLHash* f,
+                   uint64_t tid,
+                   uint64_t n_thread) {
+  auto size = buf.size();
+  for (int i = tid; i < size; i += n_thread) {
+    auto& key = buf[i];
+    if (key.first == INSERT) {
+      f->insert(key.second, key.second);
+    } else {
+      uint64_t value;
+      assert(f->search(key.second, value) != -1);
+      assert(value == key.second);
+    }
+  }
 }

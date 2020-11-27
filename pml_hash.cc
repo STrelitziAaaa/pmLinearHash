@@ -33,7 +33,6 @@ PMLHash::PMLHash(const char* file_path) {
   }
   printf("mapped_len:%zu , %f mb, ptr:%p\n", mapped_len,
          double(mapped_len) / (1024 * 1024), f);
-
   start_addr = (void*)f;
   overflow_addr = (void*)(f + FILE_SIZE / 2);
   meta = (metadata*)(f);
@@ -439,14 +438,14 @@ int PMLHash::recoverMappedMen() {
 int PMLHash::clear() {
   std::lock_guard<std::recursive_mutex> lock(mutx);
   initMappedMem();
+  return 0;
 }
 
 // -----------------------------------
 
 int PMLHash::showConfig() {
   std::lock_guard<std::recursive_mutex> lock(mutx);
-  printf("-----\n");
-  printf("PMLHASH Config:\n");
+  printf("=========PMLHash Config=======\n");
   printf("- start_addr:%p\n", start_addr);
   printf("- overflow_addr:%p\n", overflow_addr);
   printf("- meta_addr:%p\n", meta);
@@ -455,6 +454,7 @@ int PMLHash::showConfig() {
   printf("- table_addr:%p\n", table_arr);
   showKV("  - ");
   printf("- bitmap_addr:%p\n", bitmap);
+  printf("=========Init Config=======\n");
   printf("TABLE_SIZE:%d\n", TABLE_SIZE);
   printf("HASH_SIZE:%d\n", HASH_SIZE);
   printf("FILE_SIZE:%d\n", FILE_SIZE);
@@ -464,8 +464,7 @@ int PMLHash::showConfig() {
   printf("N_0:%d\n", N_0);
   printf("[Support at least %zu KVs <not include overflowTable>]\n",
          TABLE_SIZE * NORMAL_TAB_SIZE);
-
-  printf("-----\n");
+  printf("===========Config OK==========\n");
 }
 
 int PMLHash::showKV(const char* prefix) {
