@@ -21,7 +21,7 @@ PMLHash::PMLHash(const char* file_path) {
   // because pmem_map_file with PMEM_FILE_CREATE|PMEM_FILE_EXCL will fail
   // directly if file exists instead of setting errno
   // so first stat() will help to avoid invoking pmem_map_file twice
-  bool fileIsExist = chkAndCrtFile(file_path);
+  bool fileExists = chkAndCrtFile(file_path);
 
   size_t mapped_len;
   int is_pmem;
@@ -41,7 +41,7 @@ PMLHash::PMLHash(const char* file_path) {
   // mutx = (pthread_mutex_t*)malloc(sizeof(pthread_mutex_t));
   // mutx = new pthread_mutex_t();
 
-  if (fileIsExist) {
+  if (fileExists) {
 // recover
 #define DEBUG
 #ifdef DEBUG
@@ -75,7 +75,7 @@ void PMLHash::split() {
   fill_num[splitOldIdx()] = 0;
   fill_num[splitNewIdx()] = 0;
   while (1) {
-    for (int i = 0; i < curTable->fill_num; i++) {
+    for (size_t i = 0; i < curTable->fill_num; i++) {
       entry& kv = curTable->kv_arr[i];
       uint64_t idx = hashFunc(kv.key, meta->level + 1);
       insertAutoOf(getNmTableFromIdx(idx), kv, fill_num[idx]);
@@ -145,6 +145,7 @@ pm_table* PMLHash::newOverflowTable(pm_table* pre) {
 int PMLHash::freeOverflowTable(uint64_t idx) {
   bitmap->reset(idx);
   meta->overflow_num--;
+  return 0;
 }
 
 int PMLHash::freeOverflowTable(pm_table* t) {
@@ -239,6 +240,7 @@ int PMLHash::insertAutoOf(pm_table* startTable, const entry& kv, uint64_t pos) {
     n--;
   }
   startTable->insert(kv.key, kv.value, pos % TABLE_SIZE);
+  return 0;
 }
 
 // update fill_num and next_offset
@@ -263,15 +265,12 @@ int PMLHash::updateAfterSplit(pm_table* startTable, uint64_t fill_num) {
     freeOverflowTable(idx);
   }
   lastTable->next_offset = NEXT_IS_NONE;
+  return 0;
 }
 
 // never include startTable itself
 int PMLHash::cntTablesSince(pm_table* startTable) {
   int cnt = 0;
-  bool up_half = 0;
-  if (getIdxFromNmTable(startTable) < N_LEVEL(meta->level)) {
-    up_half = 1;
-  }
   while (startTable->next_offset != NEXT_IS_NONE) {
     startTable = getOfTableFromIdx(startTable->next_offset);
     cnt++;
@@ -354,6 +353,7 @@ int PMLHash::insert(const uint64_t& key, const uint64_t& value) {
     printf("error: %s\n", e.what());
     return -1;
   }
+  return 0;
 }
 
 /**
@@ -392,7 +392,7 @@ int PMLHash::remove(const uint64_t& key) {
   if (t == nullptr) {
     return -1;
   }
-  for (int i = t->pos(key) + 1; i < t->fill_num; i++) {
+  for (size_t i = t->pos(key) + 1; i < t->fill_num; i++) {
     entry& kv = t->index(i);
     t->insert(kv.key, kv.value, i - 1);
   }
@@ -428,6 +428,7 @@ int PMLHash::initMappedMem() {
   meta->init();
   bitmap->init();
   pm_table::initArray(table_arr, N_0);
+  return 0;
 }
 
 int PMLHash::recoverMappedMen() {
@@ -465,18 +466,19 @@ int PMLHash::showConfig() {
   printf("[Support at least %zu KVs <not include overflowTable>]\n",
          TABLE_SIZE * NORMAL_TAB_SIZE);
   printf("===========Config OK==========\n");
+  return 0;
 }
 
 int PMLHash::showKV(const char* prefix) {
   std::lock_guard<std::recursive_mutex> lock(mutx);
-  for (int i = 0; i < meta->size; i++) {
+  for (size_t i = 0; i < meta->size; i++) {
     pm_table* t = getNmTableFromIdx(i);
-    printf("%sTable:%d ", prefix, i);
+    printf("%sTable:%lu ", prefix, i);
     while (1) {
       if (t->fill_num == 0) {
         printf("empty");
       }
-      for (int j = 0; j < t->fill_num; j++) {
+      for (size_t j = 0; j < t->fill_num; j++) {
         printf("%zu,%zu|", t->kv_arr[j].key, t->kv_arr[j].value);
       }
       if (t->next_offset != NEXT_IS_NONE) {
@@ -488,9 +490,11 @@ int PMLHash::showKV(const char* prefix) {
     }
     printf("\n");
   }
+  return 0;
 }
 
 int PMLHash::showBitMap() {
   std::lock_guard<std::recursive_mutex> lock(mutx);
   printf("%s\n", bitmap->to_string().c_str());
+  return 0;
 }

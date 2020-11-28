@@ -36,11 +36,11 @@ typedef struct metadata {
   uint64_t overflow_num;  // amount of overflow hash tables
 
  public:
-  int init() {
+  void init() {
     bzero(this, sizeof(metadata));
     this->size = N_0;
   }
-  int updateNextPtr() {
+  void updateNextPtr() {
     if (++next >= N_LEVEL(level)) {
       level++;
       next = 0;
@@ -69,11 +69,13 @@ typedef struct pm_table {
   int init() {
     bzero(this, sizeof(pm_table));
     next_offset = NEXT_IS_NONE;
+    return 0;
   }
   static int initArray(pm_table* start, int len) {
     for (int i = 0; i < len; i++) {
       (start++)->init();
     }
+    return 0;
   }
   // return -1 if full, it won't go to the next_overflow_table
   int append(const uint64_t& key, const uint64_t& value) {
@@ -94,7 +96,7 @@ typedef struct pm_table {
   }
   // return -1 if not exists , never go to the overflow table
   int pos(const uint64_t& key) {
-    for (int i = 0; i < fill_num; i++) {
+    for (size_t i = 0; i < fill_num; i++) {
       if (kv_arr[i].key == key) {
         return i;
       }
@@ -109,6 +111,7 @@ typedef struct pm_table {
       printf("%zu,%zu| ", i.key, i.value);
     }
     printf("\n");
+    return 0;
   }
 } pm_table;
 
@@ -116,12 +119,12 @@ typedef struct bitmap_st {
   std::bitset<BITMAP_SIZE> bitmap;  // 1: available 0: occupied
 
  public:
-  int init() { bitmap.set(); }
+  void init() { bitmap.set(); }
   // set pos to 0
-  int set(int pos) { bitmap.set(pos, 0); }
+  void set(int pos) { bitmap.set(pos, 0); }
   string to_string() { return bitmap.to_string(); }
-  int reset(int pos) { bitmap.set(pos, 1); }
-  int findFirstAvailable() { return bitmap._Find_first(); }
+  void reset(int pos) { bitmap.set(pos, 1); }
+  size_t findFirstAvailable() { return bitmap._Find_first(); }
 } bitmap_st;
 
 typedef enum pm_errno {

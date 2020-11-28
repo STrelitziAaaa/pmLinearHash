@@ -1,5 +1,26 @@
 
 # pmLinearHash
+
+[TOC]
+
+## Intro
+To inplement index in a DBMS, we have two main methods:
+  - b/b+ tree
+  - hash
+
+To implement hash alg., we have different kinds of schemes. depending on whether the number of buckets is fixed at runtime
+  - Static Hashing Schemes
+    - Linear Probe Hashing
+    - Robin Hood Hashing
+    - Cuckoo Hashing
+  - Dynamic Hashing Schemes
+    - Chained Hashing
+    - Extensible Hashing
+    - Linear Hashing
+
+Here we will implement `Linear Hashing`
+
+> note: The code in the project is mixed with C and C++
 ## Build&Run
 ```bash
 cd build
@@ -17,8 +38,10 @@ make
 
 ## Function
 - 增删查改
+  - 测试代码见 [AssertTEST()](./util.cc#L264) ,下为简单示例
   ```c
   PMLHash* f = new PMLHash("./pmemFile");
+  uint64_t key = 1, value_in = 1;
   // insert
   assert(f->insert(key, value_in) != -1);
   assert(f->insert(key, value_in) == -1);
@@ -37,6 +60,7 @@ make
   assert(f->clear() != -1);
   assert(f->search(key,value_out) == -1);
   ```
+
 - GC
   - 溢出表根据 `bitmap` 位示图进行分配回收
   - `std::bitset<BITMAP_SIZE> bitmap` 位于pm中,以保证持久性
@@ -47,7 +71,7 @@ make
 
 ## 单线程YCSB性能测试
 - 起初采用了一边读一边insert/search的方法,然后对getline的循环测流逝时间
-- 后来考虑到多线程性能测试的需要,因为多线程不可能让每个线程去并行读硬盘(总线是串行的),所以后来改用了先把数据读进内存缓冲区,再insert/search
+- 后来考虑到多线程性能测试的需要,因为多线程不可能让每个线程去并行读硬盘(总线总是串行的),所以改用了先把数据读进内存缓冲区,再insert/search
 - 时间基本为纯的insert/search时间
   ```c
   auto t_start = std::chrono::high_resolution_clock::now();
@@ -93,4 +117,7 @@ load .././benchmark/10w-rw-100-0-load.txt       WTime: 107.989 ms       OPS: 0.9
 run .././benchmark/10w-rw-100-0-load.txt        WTime: 111.037 ms       OPS: 0.900613M  Delay: 1.11035 ns
 ==========Benchmark OK=========
 ```
-
+### Comment
+多线程由于有锁的竞态,导致其实效率很低下,这说明我的设计不太好. 另一方面,这个性能测试的结果随时间差异很大,这可能与cpu的状态有关  
+但无论如何,测试发现,单线程都要优于简单粗粒度加锁的多线程,这可能是因为数据集过少,导致的write操作过快的原因;  
+可以准备将锁换成读写锁,这样可以在100%读的测试中看出多线程的优势!

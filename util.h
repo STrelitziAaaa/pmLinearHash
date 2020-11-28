@@ -40,8 +40,7 @@ class Error : public exception {
     assert(0);                                            \
   } while (0);
 
-// check and create file
-bool chkAndCrtFile(const char* filePath);
+int chkAndCrtFile(const char* filePath);
 
 int TestMultiThread(PMLHash* f);
 int justInsertN(PMLHash* f, int n, uint64_t key);

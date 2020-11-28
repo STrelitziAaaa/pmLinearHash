@@ -22,22 +22,25 @@ static inline void assertFail(int x) {
   assert(x == -1);
 }
 
-bool chkAndCrtFile(const char* filePath) {
+// check and create file
+// return 0 if create ok; -1 if create error
+int chkAndCrtFile(const char* filePath) {
   struct stat fstate;
   if (!stat(filePath, &fstate)) {
     printf("pmFile Exists:Recover\n");
-    return true;
+    return -1;
   } else {
     if (errno == ENOENT) {
       // note: the file mode may be set as 0644 even if we give 0666
       // todo: here we need to mkdir
       close(creat(filePath, 0666));
       printf("pmFile Created:Init\n");
-      return false;
-    } else {
-      perror("stat");
+      return 0;
     }
+    perror("stat");
+    exit(EXIT_FAILURE);
   }
+  return -1;
 }
 
 // constexpr uint64_t INSERT = 1;
@@ -61,12 +64,13 @@ int loadYCSBBenchmark(string filePath, PMLHash* f) {
   }
   auto t_end = std::chrono::high_resolution_clock::now();
   auto dur = std::chrono::duration<double, std::milli>(t_end - t_start).count();
-  std::cout << "load " << filePath << "\tWTime: " << dur << " ms"
-            << "\tOPS: " << cnt / (dur * 1000) << "M"
-            << "\tDelay: " << dur * 1000 / cnt << " ns" << std::endl;
+  printf("load %s\tWTime: %fms \tOPS: %fM\tDelay: %fns\n", filePath.c_str(),
+         dur, cnt / (dur * 1000), dur * 1000 / cnt);
   return 0;
 }
 
+// deprecated
+// use runYCSBBenchmark(filepath , f , n_thread=1) instead;
 int runYCSBBenchmark(string filePath, PMLHash* f) {
   std::ifstream in_(filePath);
   std::string typeStr;
@@ -92,9 +96,8 @@ int runYCSBBenchmark(string filePath, PMLHash* f) {
   }
   auto t_end = std::chrono::high_resolution_clock::now();
   auto dur = std::chrono::duration<double, std::milli>(t_end - t_start).count();
-  std::cout << "run " << filePath << "\tWTime: " << dur << " ms"
-            << "\tOPS: " << cnt / (dur * 1000) << "M"
-            << "\tDelay: " << dur * 1000 / cnt << " ns" << std::endl;
+  printf("run %s\tWTime: %fms \tOPS: %fM\tDelay: %fns\n", filePath.c_str(), dur,
+         cnt / (dur * 1000), dur * 1000 / cnt);
   return 0;
 }
 
@@ -116,7 +119,7 @@ int runYCSBBenchmark(string filePath, PMLHash* f, uint64_t n_thread) {
   size_t size = keyBuf.size();
   size_t avg = size / n_thread;
   thread threads[n_thread];
-  for (int i = 0; i < n_thread; i++) {
+  for (size_t i = 0; i < n_thread; i++) {
     threads[i] =
         std::move(thread(thread_routine, std::ref(keyBuf), f, i, n_thread));
   }
@@ -125,9 +128,8 @@ int runYCSBBenchmark(string filePath, PMLHash* f, uint64_t n_thread) {
   }
   auto t_end = std::chrono::high_resolution_clock::now();
   auto dur = std::chrono::duration<double, std::milli>(t_end - t_start).count();
-  std::cout << "run " << filePath << "\tWTime: " << dur << " ms"
-            << "\tOPS: " << cnt / (dur * 1000) << "M"
-            << "\tDelay: " << dur * 1000 / cnt << " ns" << std::endl;
+  printf("run %s\tWTime: %fms \tOPS: %fM\tDelay: %fns\n", filePath.c_str(), dur,
+         cnt / (dur * 1000), dur * 1000 / cnt);
   return 0;
 }
 
@@ -143,6 +145,7 @@ int insertWithMsg(PMLHash* f, const uint64_t& key, const uint64_t& value) {
   } else {
     printf("|Insert| key:%zu,val:%zu InsertErr\n", key, value);
   }
+  return 0;
 }
 
 int TestHashInsert(PMLHash* f) {
@@ -156,6 +159,7 @@ int TestHashInsert(PMLHash* f) {
   insertWithMsg(f, dupKey, dupKey);
 
   f->showKV();
+  return 0;
 }
 
 int searchWithMsg(PMLHash* f, uint64_t& key, uint64_t& value) {
@@ -164,6 +168,7 @@ int searchWithMsg(PMLHash* f, uint64_t& key, uint64_t& value) {
   } else {
     printf("|Search Result| key:%zu value:Not Found\n", key);
   }
+  return 0;
 }
 
 int TestHashSearch(PMLHash* f) {
@@ -172,6 +177,7 @@ int TestHashSearch(PMLHash* f) {
     uint64_t key = i * (rand() % 2) + rand() % 100;
     searchWithMsg(f, key, value);
   }
+  return 0;
 }
 
 int updateWithMsg(PMLHash* f, uint64_t& key, uint64_t& value) {
@@ -180,6 +186,7 @@ int updateWithMsg(PMLHash* f, uint64_t& key, uint64_t& value) {
   } else {
     printf("|Update| key:%zu update to %zu\n", key, value);
   }
+  return 0;
 }
 
 int TestHashUpdate(PMLHash* f) {
@@ -189,6 +196,7 @@ int TestHashUpdate(PMLHash* f) {
     updateWithMsg(f, key, value);
   }
   f->showKV();
+  return 0;
 }
 
 int removeWithMsg(PMLHash* f, uint64_t& key) {
@@ -197,6 +205,7 @@ int removeWithMsg(PMLHash* f, uint64_t& key) {
   } else {
     printf("|Remove| key:%zu remove ok\n", key);
   }
+  return 0;
 }
 
 int TestHashRemove(PMLHash* f) {
@@ -205,6 +214,7 @@ int TestHashRemove(PMLHash* f) {
     removeWithMsg(f, key);
   }
   f->showKV();
+  return 0;
 }
 
 int TestBitMap(PMLHash* f) {
@@ -214,10 +224,11 @@ int TestBitMap(PMLHash* f) {
   bm->set(0);
   bm->set(1);
   f->showBitMap();
-  printf("first bit pos:%d\n", bm->findFirstAvailable());
+  printf("first bit pos:%lu\n", bm->findFirstAvailable());
   bm->reset(0);
   f->showBitMap();
-  printf("first bit pos:%d\n", bm->findFirstAvailable());
+  printf("first bit pos:%lu\n", bm->findFirstAvailable());
+  return 0;
 }
 
 int justInsertN(PMLHash* f, int n, uint64_t key) {
@@ -230,6 +241,7 @@ int justInsertN(PMLHash* f, int n, uint64_t key) {
       printf("|Insert| key:%zu,val:%zu InsertErr\n", k, k);
     }
   }
+  return 0;
 }
 
 int TestMultiThread(PMLHash* f) {
@@ -246,6 +258,7 @@ int TestMultiThread(PMLHash* f) {
   }
   f->showKV();
   f->showBitMap();
+  return 0;
 }
 
 int AssertTEST(PMLHash* f) {
@@ -254,7 +267,7 @@ int AssertTEST(PMLHash* f) {
   printf("=========Assert Test==========\n");
   printf("TEST %d KVs\n", N);
   printf("Check Empty Env...\n");
-  for (int i = 0; i < N; i++) {
+  for (uint64_t i = 0; i < N; i++) {
     uint64_t value;
     assert(f->search(i, value) == -1);
     assert(f->update(i, value) == -1);
@@ -262,11 +275,11 @@ int AssertTEST(PMLHash* f) {
   }
   // insert
   printf("Check Insert&Search...\n");
-  for (int i = 0; i < N; i++) {
+  for (uint64_t i = 0; i < N; i++) {
     assert(f->insert(i, i) != -1);
     assert(f->insert(i, i) == -1);
     // search history key&value
-    for (int j = 0; j <= i; j += ASSERT_STEP) {
+    for (uint64_t j = 0; j <= i; j += ASSERT_STEP) {
       uint64_t value = N;
       assert(f->search(j, value) != -1);
       assert(j == value);
@@ -274,10 +287,10 @@ int AssertTEST(PMLHash* f) {
   }
   // update
   printf("Check Update&Search...\n");
-  for (int i = 0; i < N; i++) {
+  for (uint64_t i = 0; i < N; i++) {
     assert(f->update(i, i + 1) != -1);
     // search history key&value
-    for (int j = 0; j <= i; j += ASSERT_STEP) {
+    for (uint64_t j = 0; j <= i; j += ASSERT_STEP) {
       uint64_t value = N;
       assert(f->search(j, value) != -1);
       assert(value == j + 1);
@@ -287,10 +300,10 @@ int AssertTEST(PMLHash* f) {
   }
   // remove
   printf("Check Remove&Search...\n");
-  for (int i = 0; i < N; i++) {
+  for (uint64_t i = 0; i < N; i++) {
     assert(f->remove(i) != -1);
     uint64_t value;
-    for (int j = 0; j <= i; j += ASSERT_STEP) {
+    for (uint64_t j = 0; j <= i; j += ASSERT_STEP) {
       assert(f->remove(j) == -1);
       assert(f->search(j, value) == -1);
       assert(f->update(j, j + 1) == -1);
@@ -305,6 +318,7 @@ int AssertTEST(PMLHash* f) {
   }
 
   printf("=========Assert OK============\n");
+  return 0;
 }
 
 int BenchmarkYCSB(PMLHash* f, uint64_t n_thread, string path_prefix) {
@@ -333,6 +347,7 @@ int BenchmarkYCSB(PMLHash* f, uint64_t n_thread, string path_prefix) {
                    n_thread);
   f->clear();
   printf("==========Benchmark OK=========\n");
+  return 0;
 }
 
 int thread_routine(vector<std::pair<char, uint64_t>>& buf,
@@ -340,7 +355,7 @@ int thread_routine(vector<std::pair<char, uint64_t>>& buf,
                    uint64_t tid,
                    uint64_t n_thread) {
   auto size = buf.size();
-  for (int i = tid; i < size; i += n_thread) {
+  for (size_t i = tid; i < size; i += n_thread) {
     auto& key = buf[i];
     if (key.first == INSERT) {
       f->insert(key.second, key.second);
@@ -350,4 +365,5 @@ int thread_routine(vector<std::pair<char, uint64_t>>& buf,
       assert(value == key.second);
     }
   }
+  return 0;
 }
