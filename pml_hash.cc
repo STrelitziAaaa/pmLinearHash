@@ -439,7 +439,7 @@ int PMLHash::initMappedMem() {
 }
 
 int PMLHash::recoverMappedMen() {
-  raise("Function not inplemented");
+  // you don't need do anything!
 }
 
 // remove all ; it is not concurency-safe
