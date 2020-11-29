@@ -33,6 +33,8 @@ memory.h
 -
 mutex
 -
+shared_mutex
+-
 stdint.h
 -
 unistd.h

@@ -84,7 +84,7 @@ int runYCSBBenchmark(string filePath, PMLHash* f) {
     in_ >> typeStr >> key;
     keyBuf.push_back(std::make_pair(TypeDict[typeStr], key));
   }
-  auto t_start = std::chrono::high_resolution_clock::now();
+  auto t_start = std::chrono::system_clock::now();
   for (auto& key : keyBuf) {
     if (key.first == INSERT) {
       f->insert(key.second, key.second);
@@ -94,7 +94,7 @@ int runYCSBBenchmark(string filePath, PMLHash* f) {
       assert(value == key.second);
     }
   }
-  auto t_end = std::chrono::high_resolution_clock::now();
+  auto t_end = std::chrono::system_clock::now();
   auto dur = std::chrono::duration<double, std::milli>(t_end - t_start).count();
   printf("run %s\tWTime: %fms \tOPS: %fM\tDelay: %fns\n", filePath.c_str(), dur,
          cnt / (dur * 1000), dur * 1000 / cnt);
@@ -115,9 +115,8 @@ int runYCSBBenchmark(string filePath, PMLHash* f, uint64_t n_thread) {
     keyBuf.push_back(std::make_pair(TypeDict[typeStr], key));
   }
   // split work
-  auto t_start = std::chrono::high_resolution_clock::now();
+  auto t_start = std::chrono::system_clock::now();
   size_t size = keyBuf.size();
-  size_t avg = size / n_thread;
   thread threads[n_thread];
   for (size_t i = 0; i < n_thread; i++) {
     threads[i] =
@@ -126,7 +125,7 @@ int runYCSBBenchmark(string filePath, PMLHash* f, uint64_t n_thread) {
   for (auto& i : threads) {
     i.join();
   }
-  auto t_end = std::chrono::high_resolution_clock::now();
+  auto t_end = std::chrono::system_clock::now();
   auto dur = std::chrono::duration<double, std::milli>(t_end - t_start).count();
   printf("run %s\tWTime: %fms \tOPS: %fM\tDelay: %fns\n", filePath.c_str(), dur,
          cnt / (dur * 1000), dur * 1000 / cnt);
@@ -231,14 +230,15 @@ int TestBitMap(PMLHash* f) {
   return 0;
 }
 
-int justInsertN(PMLHash* f, int n, uint64_t key) {
+int justInsertNWithMsg(PMLHash* f, int n, uint64_t key, uint64_t tid) {
   srand(0);
   for (int i = 0; i < n; i++) {
-    uint64_t k = key * (rand() % 2) + rand() % 100;
+    // uint64_t k = key * (rand() % 2) + rand() % 100;
+    uint64_t k = key + i;
     if (f->insert(k, k) != -1) {
-      printf("|Insert| key:%zu,val:%zu\n", k, k);
+      printf("|Insert tid=%zu| key:%zu,val:%zu\n", tid, k, k);
     } else {
-      printf("|Insert| key:%zu,val:%zu InsertErr\n", k, k);
+      printf("|Insert tid=%zu| key:%zu,val:%zu InsertErr\n", tid, k, k);
     }
   }
   return 0;
@@ -248,16 +248,16 @@ int TestMultiThread(PMLHash* f) {
   f->clear();
   f->showKV();
 
-  thread threads[HASH_SIZE * 100];
-  for (int i = 0; i < HASH_SIZE * 100; i++) {
-    threads[i] = thread(justInsertN, f, 10, i + 1);
+  thread threads[5];
+  for (size_t i = 0; i < 5; i++) {
+    threads[i] = thread(justInsertNWithMsg, f, 100, i + 1, i);
   }
 
   for (auto& i : threads) {
     i.join();
   }
   f->showKV();
-  f->showBitMap();
+  // f->showBitMap();
   return 0;
 }
 

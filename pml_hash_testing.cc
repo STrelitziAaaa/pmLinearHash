@@ -20,7 +20,7 @@ int main() {
   // f->showKV();
   // f->showBitMap();
   // justInsertN(f, 10, 5);
-  // TestMultiThread(f);
+  TestMultiThread(f);
 
-  BenchmarkYCSB(f, 2, "../");
+  BenchmarkYCSB(f, 10, "../");
 }

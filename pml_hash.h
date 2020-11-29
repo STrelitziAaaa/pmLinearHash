@@ -4,6 +4,7 @@
 #include <math.h>
 #include <memory.h>
 #include <mutex>
+#include <shared_mutex>
 // #include <pthread.h>
 #include <stdint.h>
 #include <unistd.h>
@@ -25,7 +26,7 @@
 #define N_LEVEL(level) (pow(2, level) * N_0)
 
 // typically we will use -1,but unfortunately the dataType is uint64_t
-#define NEXT_IS_NONE 999999999
+constexpr size_t NEXT_IS_NONE = 999999;
 #define VALUE_NOT_FOUND NEXT_IS_NONE
 using namespace std;
 
@@ -166,6 +167,7 @@ class PMLHash {
   pm_table* table_arr;  // virtual address of hash table array
   bitmap_st* bitmap;    // for gc
   std::recursive_mutex mutx;
+  std::shared_mutex rw_mutx;
 
   void split();
   uint64_t hashFunc(const uint64_t& key, const size_t& hash_size);

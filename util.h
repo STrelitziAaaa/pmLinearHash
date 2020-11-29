@@ -18,7 +18,8 @@ using namespace std;
 
 #define INSERT 1
 #define SEARCH 2
-static map<std::string, uint64_t> TypeDict = {{"INSERT", INSERT}, {"READ", SEARCH}};
+static map<std::string, uint64_t> TypeDict = {{"INSERT", INSERT},
+                                              {"READ", SEARCH}};
 
 class Error : public exception {
  private:
@@ -43,7 +44,6 @@ class Error : public exception {
 int chkAndCrtFile(const char* filePath);
 
 int TestMultiThread(PMLHash* f);
-int justInsertN(PMLHash* f, int n, uint64_t key);
 int TestBitMap(PMLHash* f);
 int TestHashRemove(PMLHash* f);
 int removeWithMsg(PMLHash* f, uint64_t& key);

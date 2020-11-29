@@ -81,9 +81,14 @@ void PMLHash::split() {
       insertAutoOf(getNmTableFromIdx(idx), kv, fill_num[idx]);
       fill_num[idx]++;
     }
+    // 可能的问题: 判断的时候不等于,但是马上被其他线程修改了?
+    uint64_t a = curTable->next_offset;
     if (curTable->next_offset != NEXT_IS_NONE) {
-      // it has overflow table
+      // * note: this assert is essential if used in multiThread
+      // * you will find each bucket with rw_mutex is difficult
+      // * to implement
       assert(curTable->fill_num == TABLE_SIZE);
+      // go to its next overflow table
       curTable = getOfTableFromIdx(curTable->next_offset);
     } else {
       break;
@@ -281,8 +286,8 @@ int PMLHash::cntTablesSince(pm_table* startTable) {
 // return nullptr if not found
 entry* PMLHash::searchEntry(const uint64_t& key) {
   uint64_t idx = getRealHashIdx(key);
-
   pm_table* t = getNmTableFromIdx(idx);
+
   while (1) {
     int pos = t->pos(key);
     if (pos >= 0) {
@@ -304,7 +309,6 @@ entry* PMLHash::searchEntry(const uint64_t& key) {
  */
 pm_table* PMLHash::searchPage(const uint64_t& key, pm_table** previousTable) {
   uint64_t idx = getRealHashIdx(key);
-
   pm_table* t = getNmTableFromIdx(idx);
   pm_table* pre = nullptr;
   while (1) {
@@ -338,13 +342,13 @@ pm_table* PMLHash::searchPage(const uint64_t& key, pm_table** previousTable) {
  * if the hash table is full then split is triggered
  */
 int PMLHash::insert(const uint64_t& key, const uint64_t& value) {
-  std::lock_guard<std::recursive_mutex> lock(mutx);
+  std::unique_lock<std::shared_mutex> wr_lock(rw_mutx);
+
+  uint64_t idx = getRealHashIdx(key);
   if (checkDupKey(key)) {
-    // printf("error: dupKey\n");
     return -1;
   }
 
-  uint64_t idx = getRealHashIdx(key);
   try {
     if (appendAutoOf(getNmTableFromIdx(idx), entry::makeEntry(key, value))) {
       split();
@@ -366,7 +370,8 @@ int PMLHash::insert(const uint64_t& key, const uint64_t& value) {
  * search the target entry and return the value
  */
 int PMLHash::search(const uint64_t& key, uint64_t& value) {
-  std::lock_guard<std::recursive_mutex> lock(mutx);
+  std::shared_lock<std::shared_mutex> rd_lock(rw_mutx);
+
   entry* e = searchEntry(key);
   if (e == nullptr) {
     return -1;
@@ -385,7 +390,8 @@ int PMLHash::search(const uint64_t& key, uint64_t& value) {
  * if the overflow table is empty, remove it from hash
  */
 int PMLHash::remove(const uint64_t& key) {
-  std::lock_guard<std::recursive_mutex> lock(mutx);
+  std::unique_lock<std::shared_mutex> wr_lock(rw_mutx);
+
   // you should find its previous table
   pm_table* pre = nullptr;
   pm_table* t = searchPage(key, &pre);
@@ -413,7 +419,8 @@ int PMLHash::remove(const uint64_t& key) {
  * update an existing entry
  */
 int PMLHash::update(const uint64_t& key, const uint64_t& value) {
-  std::lock_guard<std::recursive_mutex> lock(mutx);
+  std::unique_lock<std::shared_mutex> wr_lock(rw_mutx);
+
   entry* e = searchEntry(key);
   if (e == nullptr) {
     return -1;
@@ -435,9 +442,8 @@ int PMLHash::recoverMappedMen() {
   raise("Function not inplemented");
 }
 
-// remove all
+// remove all ; it is not concurency-safe
 int PMLHash::clear() {
-  std::lock_guard<std::recursive_mutex> lock(mutx);
   initMappedMem();
   return 0;
 }

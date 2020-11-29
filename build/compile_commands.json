@@ -1,17 +1,17 @@
 [
 {
   "directory": "/home/liwm29/db/pmLinearHash/build",
-  "command": "/usr/bin/g++-7     -std=c++11 -g -Wall -Wno-unused-variable -g   -o CMakeFiles/pmlhash.dir/pml_hash.cc.o -c /home/liwm29/db/pmLinearHash/pml_hash.cc",
+  "command": "/usr/bin/g++-7     -std=c++17 -g -Wall -Wno-unused-variable -g   -o CMakeFiles/pmlhash.dir/pml_hash.cc.o -c /home/liwm29/db/pmLinearHash/pml_hash.cc",
   "file": "/home/liwm29/db/pmLinearHash/pml_hash.cc"
 },
 {
   "directory": "/home/liwm29/db/pmLinearHash/build",
-  "command": "/usr/bin/g++-7     -std=c++11 -g -Wall -Wno-unused-variable -g   -o CMakeFiles/pmlhash.dir/pml_hash_testing.cc.o -c /home/liwm29/db/pmLinearHash/pml_hash_testing.cc",
+  "command": "/usr/bin/g++-7     -std=c++17 -g -Wall -Wno-unused-variable -g   -o CMakeFiles/pmlhash.dir/pml_hash_testing.cc.o -c /home/liwm29/db/pmLinearHash/pml_hash_testing.cc",
   "file": "/home/liwm29/db/pmLinearHash/pml_hash_testing.cc"
 },
 {
   "directory": "/home/liwm29/db/pmLinearHash/build",
-  "command": "/usr/bin/g++-7     -std=c++11 -g -Wall -Wno-unused-variable -g   -o CMakeFiles/pmlhash.dir/util.cc.o -c /home/liwm29/db/pmLinearHash/util.cc",
+  "command": "/usr/bin/g++-7     -std=c++17 -g -Wall -Wno-unused-variable -g   -o CMakeFiles/pmlhash.dir/util.cc.o -c /home/liwm29/db/pmLinearHash/util.cc",
   "file": "/home/liwm29/db/pmLinearHash/util.cc"
 }
 ]

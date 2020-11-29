@@ -121,3 +121,28 @@ run .././benchmark/10w-rw-100-0-load.txt        WTime: 111.037 ms       OPS: 0.9
 多线程由于有锁的竞态,导致其实效率很低下,这说明我的设计不太好. 另一方面,这个性能测试的结果随时间差异很大,这可能与cpu的状态有关  
 但无论如何,测试发现,单线程都要优于简单粗粒度加锁的多线程,这可能是因为数据集过少,导致的write操作过快的原因;  
 可以准备将锁换成读写锁,这样可以在100%读的测试中看出多线程的优势!
+
+
+### 多线程读写锁
+很奇怪的,理论上,加入读写锁,应该减少`run WTime`才对,但测试中却增加了;
+```yaml
+=========YCSB Benchmark=======
+注:时间基本为纯Insert/Search时间,不包括读文件   n_thread=10
+load .././benchmark/10w-rw-0-100-load.txt       WTime: 105.390400ms     OPS: 0.948863M  Delay: 1.053893ns
+run .././benchmark/10w-rw-0-100-load.txt        WTime: 156.114400ms     OPS: 0.640562M  Delay: 1.561128ns
+load .././benchmark/10w-rw-25-75-load.txt       WTime: 103.427700ms     OPS: 0.966869M  Delay: 1.034267ns
+run .././benchmark/10w-rw-25-75-load.txt        WTime: 151.276900ms     OPS: 0.661046M  Delay: 1.512754ns
+load .././benchmark/10w-rw-50-50-load.txt       WTime: 103.090000ms     OPS: 0.970036M  Delay: 1.030890ns
+run .././benchmark/10w-rw-50-50-load.txt        WTime: 152.888800ms     OPS: 0.654077M  Delay: 1.528873ns
+load .././benchmark/10w-rw-75-25-load.txt       WTime: 104.230100ms     OPS: 0.959425M  Delay: 1.042291ns
+run .././benchmark/10w-rw-75-25-load.txt        WTime: 148.639800ms     OPS: 0.672774M  Delay: 1.486383ns
+load .././benchmark/10w-rw-100-0-load.txt       WTime: 103.514100ms     OPS: 0.966062M  Delay: 1.035131ns
+run .././benchmark/10w-rw-100-0-load.txt        WTime: 147.955100ms     OPS: 0.675887M  Delay: 1.479536ns
+```
+
+### Fine-grained mutex
+所谓细粒度的锁,可以认为就是同一时间会有多个线程在整个索引数据结构中
+- 事实上,以桶(含初始页和溢出页)为单位的锁是难以实现的,因为要上锁,就要获取key对应的桶的序号,但很有可能这个序号是错误的!,即马上其他线程的插入导致meta->level++了,那么,我们就要保证我们获取桶序号到插入元素之间是被锁保护的,但是又必须获取到桶序号才能为那个桶上锁,所以矛盾出现了! 
+- 细粒度的锁面临的问题
+  - 其他线程插入导致的level++,本线程插入了旧的桶,导致后续的search找不到元素
+  - 加锁的时刻是访问第一个normal_table时加锁,而不是insert/search这些操作,因为insert会触发split(),从而访问其他的桶
