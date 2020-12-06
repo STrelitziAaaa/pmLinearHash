@@ -60,15 +60,15 @@ include CMakeFiles/pmlhash.dir/flags.make
 CMakeFiles/pmlhash.dir/pml_hash.cc.o: CMakeFiles/pmlhash.dir/flags.make
 CMakeFiles/pmlhash.dir/pml_hash.cc.o: ../pml_hash.cc
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/liwm29/db/pmLinearHash/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object CMakeFiles/pmlhash.dir/pml_hash.cc.o"
-	/usr/bin/g++-7  $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -o CMakeFiles/pmlhash.dir/pml_hash.cc.o -c /home/liwm29/db/pmLinearHash/pml_hash.cc
+	/usr/bin/c++  $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -o CMakeFiles/pmlhash.dir/pml_hash.cc.o -c /home/liwm29/db/pmLinearHash/pml_hash.cc
 
 CMakeFiles/pmlhash.dir/pml_hash.cc.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/pmlhash.dir/pml_hash.cc.i"
-	/usr/bin/g++-7 $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/liwm29/db/pmLinearHash/pml_hash.cc > CMakeFiles/pmlhash.dir/pml_hash.cc.i
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/liwm29/db/pmLinearHash/pml_hash.cc > CMakeFiles/pmlhash.dir/pml_hash.cc.i
 
 CMakeFiles/pmlhash.dir/pml_hash.cc.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/pmlhash.dir/pml_hash.cc.s"
-	/usr/bin/g++-7 $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/liwm29/db/pmLinearHash/pml_hash.cc -o CMakeFiles/pmlhash.dir/pml_hash.cc.s
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/liwm29/db/pmLinearHash/pml_hash.cc -o CMakeFiles/pmlhash.dir/pml_hash.cc.s
 
 CMakeFiles/pmlhash.dir/pml_hash.cc.o.requires:
 
@@ -84,15 +84,15 @@ CMakeFiles/pmlhash.dir/pml_hash.cc.o.provides.build: CMakeFiles/pmlhash.dir/pml_
 CMakeFiles/pmlhash.dir/pml_hash_testing.cc.o: CMakeFiles/pmlhash.dir/flags.make
 CMakeFiles/pmlhash.dir/pml_hash_testing.cc.o: ../pml_hash_testing.cc
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/liwm29/db/pmLinearHash/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Building CXX object CMakeFiles/pmlhash.dir/pml_hash_testing.cc.o"
-	/usr/bin/g++-7  $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -o CMakeFiles/pmlhash.dir/pml_hash_testing.cc.o -c /home/liwm29/db/pmLinearHash/pml_hash_testing.cc
+	/usr/bin/c++  $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -o CMakeFiles/pmlhash.dir/pml_hash_testing.cc.o -c /home/liwm29/db/pmLinearHash/pml_hash_testing.cc
 
 CMakeFiles/pmlhash.dir/pml_hash_testing.cc.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/pmlhash.dir/pml_hash_testing.cc.i"
-	/usr/bin/g++-7 $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/liwm29/db/pmLinearHash/pml_hash_testing.cc > CMakeFiles/pmlhash.dir/pml_hash_testing.cc.i
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/liwm29/db/pmLinearHash/pml_hash_testing.cc > CMakeFiles/pmlhash.dir/pml_hash_testing.cc.i
 
 CMakeFiles/pmlhash.dir/pml_hash_testing.cc.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/pmlhash.dir/pml_hash_testing.cc.s"
-	/usr/bin/g++-7 $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/liwm29/db/pmLinearHash/pml_hash_testing.cc -o CMakeFiles/pmlhash.dir/pml_hash_testing.cc.s
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/liwm29/db/pmLinearHash/pml_hash_testing.cc -o CMakeFiles/pmlhash.dir/pml_hash_testing.cc.s
 
 CMakeFiles/pmlhash.dir/pml_hash_testing.cc.o.requires:
 
@@ -108,15 +108,15 @@ CMakeFiles/pmlhash.dir/pml_hash_testing.cc.o.provides.build: CMakeFiles/pmlhash.
 CMakeFiles/pmlhash.dir/util.cc.o: CMakeFiles/pmlhash.dir/flags.make
 CMakeFiles/pmlhash.dir/util.cc.o: ../util.cc
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/liwm29/db/pmLinearHash/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Building CXX object CMakeFiles/pmlhash.dir/util.cc.o"
-	/usr/bin/g++-7  $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -o CMakeFiles/pmlhash.dir/util.cc.o -c /home/liwm29/db/pmLinearHash/util.cc
+	/usr/bin/c++  $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -o CMakeFiles/pmlhash.dir/util.cc.o -c /home/liwm29/db/pmLinearHash/util.cc
 
 CMakeFiles/pmlhash.dir/util.cc.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/pmlhash.dir/util.cc.i"
-	/usr/bin/g++-7 $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/liwm29/db/pmLinearHash/util.cc > CMakeFiles/pmlhash.dir/util.cc.i
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/liwm29/db/pmLinearHash/util.cc > CMakeFiles/pmlhash.dir/util.cc.i
 
 CMakeFiles/pmlhash.dir/util.cc.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/pmlhash.dir/util.cc.s"
-	/usr/bin/g++-7 $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/liwm29/db/pmLinearHash/util.cc -o CMakeFiles/pmlhash.dir/util.cc.s
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/liwm29/db/pmLinearHash/util.cc -o CMakeFiles/pmlhash.dir/util.cc.s
 
 CMakeFiles/pmlhash.dir/util.cc.o.requires:
 
