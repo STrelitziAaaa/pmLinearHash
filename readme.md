@@ -1,16 +1,20 @@
 # pmLinearHash
+## TOC
 <!-- TOC -->
 
 - [pmLinearHash](#pmlinearhash)
+  - [TOC](#toc)
   - [Intro](#intro)
   - [Build&Run](#buildrun)
   - [PMDK Env](#pmdk-env)
     - [Install](#install)
     - [Import](#import)
   - [Feature](#feature)
+  - [Todo](#todo)
   - [单线程YCSB性能测试](#单线程ycsb性能测试)
   - [多线程YCSB性能测试](#多线程ycsb性能测试)
   - [Comment](#comment)
+  - [Concurrency safe](#concurrency-safe)
     - [Fine-grained mutex](#fine-grained-mutex)
 
 <!-- /TOC -->
@@ -388,7 +392,8 @@ make
   std::shared_lock rd_lock(rwMutx);
   ```
   </details>
-
+## Todo
+- [ ] NVM环境配置
 ## 单线程YCSB性能测试
 起初采用了一边读一边insert/search的方法,然后对getline的循环测流逝时间.  
 后来考虑到多线程性能测试的需要,因为多线程不可能让每个线程去并行读硬盘(总线总是串行的),所以改用了先把数据读进内存缓冲区,再insert/search(读/写)  
@@ -445,8 +450,14 @@ run .././benchmark/10w-rw-100-0-load.txt        WTime: 83.637800ms      OPS: 1.1
   - 此外并发线程数的选择上,也不能太多,毕竟硬件线程有限.  
 - 另一方面,这个性能测试的结果随时间差异很大,这可能与cpu的状态有关  
 - 但无论如何,测试发现,单线程都要优于简单粗粒度加锁的多线程,这可能是因为数据集过少,导致的write操作过快的原因;  
-  - 比较奇怪的是,多线程读写锁在100%读的情况下,也劣于单线程读,也许这就是网络库中要io复用而不是新开线程的原因吧
+  - 比较奇怪的是,多线程读写锁在100%读的情况下,也劣于单线程读,也许这就是网络库中要io复用而不是新开线程的原因
 
+## Concurrency safe
+> 这里不区分并发和并行  
+
+一个数据库是并发安全的,如果一个并发操作的结果和它在串行执行时表现的一样  
+此外,在执行期间
+- 其访问对象的状态不能被改变,即重复读的结果一致,直到事务结束
 ### Fine-grained mutex
 所谓细粒度的锁,可以认为就是同一时间会有多个线程在整个索引数据结构中
 - 细粒度的锁(如果以桶为单位加锁)也许面临的问题
@@ -462,5 +473,6 @@ run .././benchmark/10w-rw-100-0-load.txt        WTime: 83.637800ms      OPS: 1.1
     - 可以认为update是读而不是写,不用加写锁,只需在修改时使用 `CAS` 修改
       - 注意处理读到后被删除的情况,这要求我们检查key并修改value
         - 遗憾的是,似乎没有这样的api,典型的 `CAS` 是检查v并修改v
+      - 一般的解决方法是延时删除,简单将对应删除位置1,保证临近的update仍然访问到这个键值.后续在定时gc中锁全表,真正删除键值
   - Remove
     - 也许可以延时删除
