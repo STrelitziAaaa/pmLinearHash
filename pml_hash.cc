@@ -4,6 +4,7 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <atomic>
 #include <map>
 #include "util.h"
 
@@ -38,8 +39,6 @@ PMLHash::PMLHash(const char* file_path) {
   meta = (metadata*)(f);
   bitmap = (bitmap_st*)(meta + 1);
   table_arr = (pm_table*)(bitmap + 1);
-  // mutx = (pthread_mutex_t*)malloc(sizeof(pthread_mutex_t));
-  // mutx = new pthread_mutex_t();
 
   if (fileExists) {
 // recover
@@ -129,7 +128,7 @@ pm_table* PMLHash::newOverflowTable() {
     // after throw this msg, the db may still can insert other kv, but we still
     // view it as full
     // we just throw error,instead of returning nullptr
-
+    pmError.set(OfMemoryLimitErr);
     throw Error("newOverflowTable: memory size limit");
   }
   bitmap->set(offset);
@@ -150,6 +149,7 @@ pm_table* PMLHash::newOverflowTable(pm_table* pre) {
 int PMLHash::freeOverflowTable(uint64_t idx) {
   bitmap->reset(idx);
   meta->overflow_num--;
+  pmem_persist(&(meta->overflow_num), sizeof(uint64_t));
   return 0;
 }
 
@@ -160,6 +160,7 @@ int PMLHash::freeOverflowTable(pm_table* t) {
 // it will use meta.size to address , and init table
 pm_table* PMLHash::newNormalTable() {
   if (meta->size >= NORMAL_TAB_SIZE) {
+    pmError.set(NmMemoryLimitErr);
     throw Error("newNormalTable: memory size limit");
   }
   pm_table* table = (pm_table*)(table_arr + meta->size);
@@ -170,10 +171,16 @@ pm_table* PMLHash::newNormalTable() {
 
 // NmTable : Normal Table, which is not a overflow table
 pm_table* PMLHash::getNmTableFromIdx(uint64_t idx) {
+  if (idx == NEXT_IS_NONE) {
+    return nullptr;
+  }
   return (pm_table*)((pm_table*)table_arr + idx);
 }
 // OfTable : Overflow Table
 pm_table* PMLHash::getOfTableFromIdx(uint64_t idx) {
+  if (idx == NEXT_IS_NONE) {
+    return nullptr;
+  }
   return (pm_table*)((pm_table*)overflow_addr + idx);
 }
 
@@ -190,6 +197,7 @@ uint64_t PMLHash::getIdxFromNmTable(pm_table* t) {
   return getIdxFromTable((pm_table*)start_addr, t);
 }
 
+// deprecated: it's used only once and we can searchEntry directly instead.
 bool PMLHash::checkDupKey(const uint64_t& key) {
   entry* e = searchEntry(key);
   if (e != nullptr) {
@@ -342,21 +350,23 @@ pm_table* PMLHash::searchPage(const uint64_t& key, pm_table** previousTable) {
  * if the hash table is full then split is triggered
  */
 int PMLHash::insert(const uint64_t& key, const uint64_t& value) {
-  std::unique_lock<std::shared_mutex> wr_lock(rw_mutx);
+  std::unique_lock wr_lock(rwMutx);
 
-  uint64_t idx = getRealHashIdx(key);
-  if (checkDupKey(key)) {
+  if (searchEntry(key) != nullptr) {
+    pmError.set(DupKeyErr);
     return -1;
   }
 
   try {
-    if (appendAutoOf(getNmTableFromIdx(idx), entry::makeEntry(key, value))) {
+    if (appendAutoOf(getNmTableFromIdx(getRealHashIdx(key)),
+                     entry::makeEntry(key, value))) {
       split();
     }
   } catch (Error& e) {
-    printf("error: %s\n", e.what());
+    pmError.perror("insert");
     return -1;
   }
+  pmem_persist(start_addr, FILE_SIZE);
   return 0;
 }
 
@@ -370,7 +380,7 @@ int PMLHash::insert(const uint64_t& key, const uint64_t& value) {
  * search the target entry and return the value
  */
 int PMLHash::search(const uint64_t& key, uint64_t& value) {
-  std::shared_lock<std::shared_mutex> rd_lock(rw_mutx);
+  std::shared_lock rd_lock(rwMutx);
 
   entry* e = searchEntry(key);
   if (e == nullptr) {
@@ -390,22 +400,32 @@ int PMLHash::search(const uint64_t& key, uint64_t& value) {
  * if the overflow table is empty, remove it from hash
  */
 int PMLHash::remove(const uint64_t& key) {
-  std::unique_lock<std::shared_mutex> wr_lock(rw_mutx);
-
+  std::unique_lock wr_lock(rwMutx);
   // you should find its previous table
   pm_table* pre = nullptr;
   pm_table* t = searchPage(key, &pre);
   if (t == nullptr) {
+    pmError.set(NotFoundErr);
     return -1;
   }
-  for (size_t i = t->pos(key) + 1; i < t->fill_num; i++) {
-    entry& kv = t->index(i);
-    t->insert(kv.key, kv.value, i - 1);
+
+  entry& lastKV = t->index(t->fill_num - 1);
+  t->insert(lastKV.key, lastKV.value, t->pos(key));
+
+  while (t->next_offset != NEXT_IS_NONE) {
+    pre = t;
+    t = getOfTableFromIdx(t->next_offset);
+    entry& lastKV = t->index(t->fill_num - 1);
+    assert(pre->fill_num == TABLE_SIZE);
+    pre->insert(lastKV.key, lastKV.value, TABLE_SIZE - 1);
   }
+
   if (--(t->fill_num) == 0 && pre != nullptr) {
     freeOverflowTable(t);
     pre->next_offset = NEXT_IS_NONE;
   }
+  pmem_persist(start_addr, FILE_SIZE);
+
   return 0;
 }
 
@@ -419,13 +439,15 @@ int PMLHash::remove(const uint64_t& key) {
  * update an existing entry
  */
 int PMLHash::update(const uint64_t& key, const uint64_t& value) {
-  std::unique_lock<std::shared_mutex> wr_lock(rw_mutx);
+  std::unique_lock wr_lock(rwMutx);
 
   entry* e = searchEntry(key);
   if (e == nullptr) {
     return -1;
   }
+
   e->value = value;
+  pmem_persist(e, sizeof(entry));
   return 0;
 }
 
@@ -440,18 +462,19 @@ int PMLHash::initMappedMem() {
 
 int PMLHash::recoverMappedMen() {
   // you don't need do anything!
+  return 0;
 }
 
 // remove all ; it is not concurency-safe
 int PMLHash::clear() {
   initMappedMem();
+  pmem_persist(start_addr, FILE_SIZE);
   return 0;
 }
 
 // -----------------------------------
 
 int PMLHash::showConfig() {
-  std::lock_guard<std::recursive_mutex> lock(mutx);
   printf("=========PMLHash Config=======\n");
   printf("- start_addr:%p\n", start_addr);
   printf("- overflow_addr:%p\n", overflow_addr);
@@ -476,7 +499,7 @@ int PMLHash::showConfig() {
 }
 
 int PMLHash::showKV(const char* prefix) {
-  std::lock_guard<std::recursive_mutex> lock(mutx);
+  printf("===========Table View=========\n");
   for (size_t i = 0; i < meta->size; i++) {
     pm_table* t = getNmTableFromIdx(i);
     printf("%sTable:%lu ", prefix, i);
@@ -496,11 +519,11 @@ int PMLHash::showKV(const char* prefix) {
     }
     printf("\n");
   }
+  printf("===========Table OK===========\n");
   return 0;
 }
 
 int PMLHash::showBitMap() {
-  std::lock_guard<std::recursive_mutex> lock(mutx);
   printf("%s\n", bitmap->to_string().c_str());
   return 0;
 }

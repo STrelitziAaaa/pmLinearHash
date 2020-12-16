@@ -14,7 +14,7 @@
 #include <iostream>
 #include <vector>
 
-#define TABLE_SIZE 4                                // adjustable
+#define TABLE_SIZE 1                                // adjustable
 #define HASH_SIZE 16                                // adjustable
 #define FILE_SIZE 1024 * 1024 * 16                  // 16 MB adjustable
 #define BITMAP_SIZE 1024 * 1024 / sizeof(pm_table)  // for gc of overflowT
@@ -130,26 +130,33 @@ typedef struct bitmap_st {
 
 typedef enum pm_errno {
   Success = 0,
-  DupKey,
-  MemoryLimit,
-  NotFound,
+  DupKeyErr,
+  NmMemoryLimitErr,
+  OfMemoryLimitErr,
+  NotFoundErr,
 } pm_errno;
 
 class pm_err {
  private:
-  pm_errno errNo;
+  pm_errno errNo_;
 
  public:
-  pm_err() : errNo(Success) {}
+  pm_err() : errNo_(Success) {}
+  void set(pm_errno errNo) { errNo_ = errNo; }
+  void perror(std::string str) {
+    std::cout << str << " :" << string() << std::endl;
+  }
   std::string string() {
-    switch (errNo) {
+    switch (errNo_) {
       case Success:
         return "success";
-      case DupKey:
+      case DupKeyErr:
         return "duplicate key";
-      case MemoryLimit:
-        return "memory size limit";
-      case NotFound:
+      case NmMemoryLimitErr:
+        return "allocate normal table:  memory size limit";
+      case OfMemoryLimitErr:
+        return "allocate overflow table:  memory size limit";
+      case NotFoundErr:
         return "key not found";
       default:
         return "unkownn error";
@@ -161,13 +168,12 @@ class pm_err {
 class PMLHash {
  private:
   void* start_addr;     // the start address of mapped file
-  void* overflow_addr;  // the start address of overflow table
-                        // array
+  void* overflow_addr;  // the start address of overflow tableArray
   metadata* meta;       // virtual address of metadata
   pm_table* table_arr;  // virtual address of hash table array
   bitmap_st* bitmap;    // for gc
-  std::recursive_mutex mutx;
-  std::shared_mutex rw_mutx;
+
+  std::shared_mutex rwMutx;
 
   void split();
   uint64_t hashFunc(const uint64_t& key, const size_t& hash_size);

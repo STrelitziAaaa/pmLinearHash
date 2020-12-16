@@ -148,9 +148,8 @@ int insertWithMsg(PMLHash* f, const uint64_t& key, const uint64_t& value) {
 }
 
 int TestHashInsert(PMLHash* f) {
-  for (uint64_t i = 1; i <= HASH_SIZE * 100; i++) {
-    uint64_t v = i * (rand() % 2) + rand() % 100;
-    insertWithMsg(f, v, v);
+  for (uint64_t i = 1; i <= HASH_SIZE; i++) {
+    insertWithMsg(f, i, i);
   }
 
   uint64_t dupKey = 200;
@@ -163,17 +162,17 @@ int TestHashInsert(PMLHash* f) {
 
 int searchWithMsg(PMLHash* f, uint64_t& key, uint64_t& value) {
   if (f->search(key, value) != -1) {
-    printf("|Search Result| key:%zu value:%zu\n", key, value);
+    printf("|Search| key:%zu result value:%zu\n", key, value);
   } else {
-    printf("|Search Result| key:%zu value:Not Found\n", key);
+    printf("|Search| key:%zu value:Not Found\n", key);
   }
   return 0;
 }
 
 int TestHashSearch(PMLHash* f) {
-  for (uint64_t i = 1; i <= HASH_SIZE; i += 5) {
+  for (uint64_t i = 1; i <= HASH_SIZE; i++) {
     uint64_t value;
-    uint64_t key = i * (rand() % 2) + rand() % 100;
+    uint64_t key = i;
     searchWithMsg(f, key, value);
   }
   return 0;
@@ -189,8 +188,8 @@ int updateWithMsg(PMLHash* f, uint64_t& key, uint64_t& value) {
 }
 
 int TestHashUpdate(PMLHash* f) {
-  for (uint64_t i = 1; i <= HASH_SIZE; i += 5) {
-    uint64_t key = i * (rand() % 2) + rand() % 100;
+  for (uint64_t i = 1; i <= HASH_SIZE; i++) {
+    uint64_t key = i;
     uint64_t value = key + 1;
     updateWithMsg(f, key, value);
   }
@@ -208,9 +207,8 @@ int removeWithMsg(PMLHash* f, uint64_t& key) {
 }
 
 int TestHashRemove(PMLHash* f) {
-  for (uint64_t i = 1; i <= HASH_SIZE + 10; i += 5) {
-    uint64_t key = i * (rand() % 2) + rand() % 100;
-    removeWithMsg(f, key);
+  for (uint64_t i = 1; i <= HASH_SIZE; i++) {
+    removeWithMsg(f, i);
   }
   f->showKV();
   return 0;
@@ -262,7 +260,10 @@ int TestMultiThread(PMLHash* f) {
 }
 
 int AssertTEST(PMLHash* f) {
-  const int N = 200000;
+  // the allowable size is between 300000 and 400000,
+  // otherwise trigger memory size limit
+  const int N = 300000;
+  const int ASSERT_STEP = 5000;
 
   printf("=========Assert Test==========\n");
   printf("TEST %d KVs\n", N);
@@ -307,6 +308,10 @@ int AssertTEST(PMLHash* f) {
       assert(f->remove(j) == -1);
       assert(f->search(j, value) == -1);
       assert(f->update(j, j + 1) == -1);
+    }
+    for (uint64_t j = i + 1; j < N; j += ASSERT_STEP) {
+      uint64_t value;
+      assert(f->search(j, value) != -1);
     }
   }
   // clear

@@ -14,7 +14,6 @@
 using namespace std;
 
 // #define ASSERT_STEP 100 // we will use this if strict,but time-consuming
-#define ASSERT_STEP 100000  // fast
 
 #define INSERT 1
 #define SEARCH 2
