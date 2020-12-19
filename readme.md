@@ -1,7 +1,7 @@
 <img align="right" src="./static/db_logo.png" width=100px/>
 
 # pmLinearHash
-![](https://img.shields.io/badge/pmLinearHash-v0.1-519dd9.svg) ![](https://img.shields.io/badge/platform-linux-lightgray.svg) ![](https://img.shields.io/badge/c++-std=c++17-blue.svg)[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)  
+![](https://img.shields.io/badge/pmLinearHash-v0.1-519dd9.svg) ![](https://img.shields.io/badge/platform-linux-lightgray.svg) ![](https://img.shields.io/badge/c++-std=c++17-blue.svg) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)  
 :rocket: This is an inplementation of [2020-Fall-DBMS-Project](https://github.com/ZhangJiaQiao/2020-Fall-DBMS-Project)
 
 ## TOC
@@ -67,7 +67,8 @@ The Repo was built&run&tested under the following platform
 cd build
 cmake ..
 make
-../bin/pmlhash
+cd ../bin
+./pmlhash
 ```
 
 ## Feature

@@ -1,3 +1,5 @@
 .vscode
 build/*
+!build/.gitkeep
 bin/*
+!bin/.gitkeep

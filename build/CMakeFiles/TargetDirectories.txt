@@ -1,3 +1,0 @@
-/home/liwm29/db/pmLinearHash/build/CMakeFiles/rebuild_cache.dir
-/home/liwm29/db/pmLinearHash/build/CMakeFiles/pmlhash.dir
-/home/liwm29/db/pmLinearHash/build/CMakeFiles/edit_cache.dir
