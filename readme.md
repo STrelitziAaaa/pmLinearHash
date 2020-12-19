@@ -1,19 +1,29 @@
+<img align="right" src="./static/db_logo.png" width=100px/>
+
 # pmLinearHash
+![](https://img.shields.io/badge/pmLinearHash-v0.1-519dd9.svg) ![](https://img.shields.io/badge/platform-linux-lightgray.svg) ![](https://img.shields.io/badge/c++-std=c++17-blue.svg)[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)  
+:rocket: This is an inplementation of [2020-Fall-DBMS-Project](https://github.com/ZhangJiaQiao/2020-Fall-DBMS-Project)
+
 ## TOC
 <!-- TOC -->
 
 - [pmLinearHash](#pmlinearhash)
   - [TOC](#toc)
   - [Intro](#intro)
+  - [Env Config](#env-config)
+    - [NVM](#nvm)
+    - [PMDK](#pmdk)
   - [Build&Run](#buildrun)
-  - [PMDK Env](#pmdk-env)
-    - [Install](#install)
-    - [Import](#import)
   - [Feature](#feature)
+    - [CRUD](#crud)
+    - [GC](#gc)
+    - [MultiThread](#multithread)
   - [Todo](#todo)
   - [单线程YCSB性能测试](#单线程ycsb性能测试)
   - [多线程YCSB性能测试](#多线程ycsb性能测试)
   - [Comment](#comment)
+    - [About CRUD](#about-crud)
+    - [About MultiThread](#about-multithread)
   - [Concurrency safe](#concurrency-safe)
     - [Fine-grained mutex](#fine-grained-mutex)
 
@@ -38,23 +48,38 @@ Here we will implement `Linear Hashing`
 
 > note: The code in the project is mixed with C and C++
 
-## Build&Run
-```bash
-cd build
-make
-./pmlhash
-```
 
-## PMDK Env
 
-### Install
+## Env Config
+### NVM
+- todo
+### PMDK
+- Install
   - `sudo apt install libpmem-dev`
 
-### Import
+- Import
   - `#include <libpmem.h>`
 
+## Build&Run
+The Repo was built&run&tested under the following platform
+- Linux 4.19.104-microsoft-standard x86_64 GNU/Linux
+```bash
+cd build
+cmake ..
+make
+../bin/pmlhash
+```
+
 ## Feature
-- CRUD
+### CRUD
+- Insert
+  - 直接在桶上 `append` ,根据返回值判断是否需要 `split` ,如果 `split` ,则通过遍历原桶,向原桶和新桶分发(`insert`)元素,通过维护计数器来确定元素插入位置,整个过程是 `inplace` 的
+- Remove
+  - 通过 `searchWithPage` 函数,返回被查元素`所在页`和`前一页`,删除时,直接将所在页最后一个元素与被删元素 `swap` ,并递减 `fillnum` 即可
+- Search
+  - 直接返回被查元素的引用(指针)
+- Update
+  - 直接返回被查元素的引用(指针),然后修改
   <details>
   <summary>Insert</summary>
 
@@ -345,9 +370,9 @@ make
   ```
   </details> 
 
-- GC
-  - 溢出表根据 `bitmap` 位示图进行分配回收
-  - `std::bitset<BITMAP_SIZE> bitmap` 位于pm中,以保证持久性
+### GC
+- 溢出表根据 `bitmap` 位示图进行分配回收
+- `std::bitset<BITMAP_SIZE> bitmap` 位于pm中,以保证持久性
   <details>
   <summary>分配与回收</summary>
 
@@ -379,41 +404,47 @@ make
   }
   ```
   </details>
-- MultiThread
-  - 简单使用粗粒度的锁(每个基础操作[insert/search/update/remove]加锁)
-  - `std::shared_mutex rwMutx(C++17)` 位于普通内存(stack or heap)中,运行时易失变量,非持久
-  - 细粒度的锁, 甚至 lock-free
-    - 经过多次尝试,目前看来我是难以在目前这份代码架构上做出真正的并发控制的,一方面是没学过,一方面是水平有限,只能将并行用锁改串行.
-  <details>
-  <summary>读写锁 raii-style</summary>
 
+### MultiThread
+- 简单使用粗粒度的锁(每个基础操作[insert/search/update/remove]加锁)
+- `std::shared_mutex rwMutx(C++17)` 位于普通内存(stack or heap)中,运行时易失变量,非持久
+- 细粒度的锁, 甚至 lock-free
+  - 经过多次尝试,目前看来我是难以在目前这份代码架构上做出真正的并发控制的,一方面是没学过,一方面是水平有限,只能将并行用锁改串行.
+- 读写锁 raii-style
   ```c
   std::unique_lock wr_lock(rwMutx);
   std::shared_lock rd_lock(rwMutx);
   ```
-  </details>
+  
 ## Todo
 - [ ] NVM环境配置
 ## 单线程YCSB性能测试
 起初采用了一边读一边insert/search的方法,然后对getline的循环测流逝时间.  
 后来考虑到多线程性能测试的需要,因为多线程不可能让每个线程去并行读硬盘(总线总是串行的),所以改用了先把数据读进内存缓冲区,再insert/search(读/写)  
-- 时间基本为纯的insert/search时间
-```c
-  t_start = std::chrono::high_resolution_clock::now();
-for ( & key : keyBuf) {
-  if (key.first == INSERT) {
-    f->insert(key.second, key.second);
-  } else {
-    uint64_t value;
-    assert(f->search(key.second, value) != -1);
-    assert(value == key.second);
+- 时间基本为纯的insert/search时间,不包括读磁盘
+  <details>
+  <summary>计时机制</summary>
+
+  ```c
+  auto t_start = std::chrono::high_resolution_clock::now();
+  for (auto & key : keyBuf) {
+    if (key.first == INSERT) {
+      f->insert(key.second, key.second);
+    } else {
+      uint64_t value;
+      assert(f->search(key.second, value) != -1);
+      assert(value == key.second);
+    }
   }
-}
-  t_end = std::chrono::high_resolution_clock::now();
-```
+  auto t_end = std::chrono::high_resolution_clock::now();
+  auto dur = std::chrono::duration<double, std::milli>(t_end - t_start).count();
+  printf("run %s\tWTime: %fms \tOPS: %fM\tDelay: %fns\n", filePath.c_str(), dur,
+         cnt / (dur * 1000), dur * 1000 / cnt);
+  ```
+  </details>
 ```yaml
 =========YCSB Benchmark=======
-注:时间基本为纯Insert/Search时间,不包括读文件 n_thread=1
+注:时间基本为纯Insert/Search时间,不包括读文件(读磁盘) n_thread=1
 load .././benchmark/10w-rw-0-100-load.txt       WTime: 107.249 ms       OPS: 0.932422M  Delay: 1.07248 ns
 run .././benchmark/10w-rw-0-100-load.txt        WTime: 26.7503 ms       OPS: 3.73831M   Delay: 0.2675 ns
 load .././benchmark/10w-rw-25-75-load.txt       WTime: 105.719 ms       OPS: 0.945909M  Delay: 1.05718 ns
@@ -431,7 +462,7 @@ run .././benchmark/10w-rw-100-0-load.txt        WTime: 27.2577 ms       OPS: 3.6
 设置并发线程数为4
 ```yaml
 =========YCSB Benchmark=======
-注:时间基本为纯Insert/Search时间,不包括读文件   n_thread=4
+注:时间基本为纯Insert/Search时间,不包括读文件(读磁盘)   n_thread=4
 load .././benchmark/10w-rw-0-100-load.txt       WTime: 102.260500ms     OPS: 0.977904M  Delay: 1.022595ns
 run .././benchmark/10w-rw-0-100-load.txt        WTime: 83.131300ms      OPS: 1.202928M  Delay: 0.831305ns
 load .././benchmark/10w-rw-25-75-load.txt       WTime: 101.272800ms     OPS: 0.987442M  Delay: 1.012718ns
@@ -446,18 +477,26 @@ run .././benchmark/10w-rw-100-0-load.txt        WTime: 83.637800ms      OPS: 1.1
 ```
 
 ## Comment
+### About CRUD
+合适封装的高可复用基本函数模块
+### About MultiThread
 - 多线程由于有锁的竞态,导致其实效率很低下,这说明我的设计不太好(只是随意的添加了锁将并行操作改串行).  
   - 此外并发线程数的选择上,也不能太多,毕竟硬件线程有限.  
 - 另一方面,这个性能测试的结果随时间差异很大,这可能与cpu的状态有关  
 - 但无论如何,测试发现,单线程都要优于简单粗粒度加锁的多线程,这可能是因为数据集过少,导致的write操作过快的原因;  
   - 比较奇怪的是,多线程读写锁在100%读的情况下,也劣于单线程读,也许这就是网络库中要io复用而不是新开线程的原因
-
 ## Concurrency safe
 > 这里不区分并发和并行  
 
-一个数据库是并发安全的,如果一个并发操作的结果和它在串行执行时表现的一样  
-此外,在执行期间
-- 其访问对象的状态不能被改变,即重复读的结果一致,直到事务结束
+多线程支持的两个目的
+- 并发,时分复用,有效降低多用户系统的响应时间
+- 并行,真正提高引擎读写性能
+
+在事务处理中,一个数据库是并发安全的,如果一个并发操作的结果和它在串行执行时表现的一样,我们可以将增删查改这些基本操作视为一个事务  
+在多事务中,一个事务必须满足
+- 可重复读
+- 不能读未提交数据
+- 不能写未提交数据
 ### Fine-grained mutex
 所谓细粒度的锁,可以认为就是同一时间会有多个线程在整个索引数据结构中
 - 细粒度的锁(如果以桶为单位加锁)也许面临的问题

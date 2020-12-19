@@ -25,4 +25,5 @@ int main() {
   // TestMultiThread(f);
 
   // BenchmarkYCSB(f, 4, "../");
+  delete f;
 }
