@@ -3,7 +3,6 @@
 
 thread_local pm_err pmError;
 
-
 /**
  * @brief construct function of pmLinHash
  * @param file_path
@@ -43,18 +42,15 @@ pmLinHash::pmLinHash(const char* file_path) {
 }
 
 /**
- * PMLHash::~PMLHash
- *
- * unmap and close the data file
+ * @brief unmap and close the data file
  */
 pmLinHash::~pmLinHash() {
   pmem_unmap(start_addr, FILE_SIZE);
 }
+
 /**
- * PMLHash
- *
- * split the hash table indexed by the meta->next
- * update the metadata
+ * @brief split the hash table indexed by the meta->next and update metadata
+ * @return (void)
  */
 void pmLinHash::split() {
   pm_table* oldTable = getNmTableFromIdx(meta->next);
@@ -89,30 +85,23 @@ void pmLinHash::split() {
   // update the next of metadata
   meta->updateNextPtr();
 }
+
 /**
- * PMLHash
- *
- * @param  {uint64_t} key     : key
- * @param  {size_t} hash_size : the N in hash func: idx = hash % N
- * @return {uint64_t}         : index of hash table array
- *
- * need to hash the key with proper hash function first
- * then calculate the index by N module
+ * @brief compute the target index
+ * @param key
+ * @param level the level of the linear hash, defined in the meta->level
+ * @return index of hash table array
  */
 uint64_t pmLinHash::hashFunc(const uint64_t& key, const size_t& level) {
   return key % uint64_t(N_LEVEL(level));
 }
 
 /**
- * PMLHash
- *
- * @param  {uint64_t} offset : the file address offset of the overflow hash
- * table to the start of the whole file
- * @return {pm_table*}       : the virtual address of new overflow hash table
- *
- * @fixed: just use overflow_addr + meta.overflow_num to compute the new addr
+ * @brief require and init new overflow table
+ * @param pre automatically set pre->next = the new allocated table
+ * @return the new allocated table
  */
-pm_table* pmLinHash::newOverflowTable() {
+pm_table* pmLinHash::newOverflowTable(pm_table* pre) {
   uint64_t offset = bitmap->findFirstAvailable();
   if (offset == BITMAP_SIZE) {
     // after throw this msg, the db may still can insert other kv, but we still
@@ -122,20 +111,21 @@ pm_table* pmLinHash::newOverflowTable() {
     throw Error("newOverflowTable: memory size limit");
   }
   bitmap->set(offset);
-
   pm_table* table = (pm_table*)((pm_table*)overflow_addr + offset);
   table->init();
   meta->overflow_num++;
+
+  if (pre != nullptr) {
+    pre->next_offset = offset;
+  }
   return table;
 }
 
-pm_table* pmLinHash::newOverflowTable(pm_table* pre) {
-  pm_table* table = newOverflowTable();
-  pre->next_offset = getIdxFromOfTable(table);
-  return table;
-}
-
-// if this table have previousTable, you should set previousTable.next_offset
+/**
+ * @brief free the table; it never change the next of the previous table
+ * @param idx the offset regarding the first overflow table
+ * @return nothing
+ */
 int pmLinHash::freeOverflowTable(uint64_t idx) {
   bitmap->reset(idx);
   meta->overflow_num--;
@@ -143,11 +133,19 @@ int pmLinHash::freeOverflowTable(uint64_t idx) {
   return 0;
 }
 
+/**
+ * @brief free the table
+ * @param t the table addr
+ * @return nothing
+ */
 int pmLinHash::freeOverflowTable(pm_table* t) {
   return freeOverflowTable(getIdxFromOfTable(t));
 }
 
-// it will use meta.size to address , and init table
+/**
+ * @brief require and init new normal table
+ * @return the allocated table
+ */
 pm_table* pmLinHash::newNormalTable() {
   if (meta->size >= NORMAL_TAB_SIZE) {
     pmError.set(NmMemoryLimitErr);
@@ -159,14 +157,23 @@ pm_table* pmLinHash::newNormalTable() {
   return table;
 }
 
-// NmTable : Normal Table, which is not a overflow table
+/**
+ * @brief  map the idx of the normal table to ptr
+ * @param idx offset
+ * @return table addr
+ */
 pm_table* pmLinHash::getNmTableFromIdx(uint64_t idx) {
   if (idx == NEXT_IS_NONE) {
     return nullptr;
   }
   return (pm_table*)((pm_table*)table_arr + idx);
 }
-// OfTable : Overflow Table
+
+/**
+ * @brief map the idx of the overflow table to ptr
+ * @param idx offset
+ * @return table addr
+ */
 pm_table* pmLinHash::getOfTableFromIdx(uint64_t idx) {
   if (idx == NEXT_IS_NONE) {
     return nullptr;
@@ -174,20 +181,39 @@ pm_table* pmLinHash::getOfTableFromIdx(uint64_t idx) {
   return (pm_table*)((pm_table*)overflow_addr + idx);
 }
 
+/**
+ * @brief compute offset
+ * @param start
+ * @param t
+ * @return t-start
+ */
 uint64_t pmLinHash::getIdxFromTable(pm_table* start, pm_table* t) {
   return (t - start);
 }
 
-// get index from overflow table
+/**
+ * @brief get offset(index) from overflow table
+ * @param t
+ * @return
+ */
 uint64_t pmLinHash::getIdxFromOfTable(pm_table* t) {
   return getIdxFromTable((pm_table*)overflow_addr, t);
 }
 
+/**
+ * @brief get offset(index) from normal table
+ * @param t
+ * @return
+ */
 uint64_t pmLinHash::getIdxFromNmTable(pm_table* t) {
   return getIdxFromTable((pm_table*)start_addr, t);
 }
 
-// deprecated: it's used only once and we can searchEntry directly instead.
+/**
+ * @brief deprecated: we can use searchEntry instead.
+ * @param key
+ * @return
+ */
 bool pmLinHash::checkDupKey(const uint64_t& key) {
   entry* e = searchEntry(key);
   if (e != nullptr) {
@@ -196,13 +222,26 @@ bool pmLinHash::checkDupKey(const uint64_t& key) {
   return false;
 }
 
+/**
+ * @brief
+ * @return return the old idx of the bucket
+ */
 uint64_t pmLinHash::splitOldIdx() {
   return meta->next;
 }
+/**
+ * @brief
+ * @return return the new idx of the bucket
+ */
 uint64_t pmLinHash::splitNewIdx() {
   return meta->next + N_LEVEL(meta->level);
 }
 
+/**
+ * @brief compute the real hash idx,it will use meta->level+1
+ * @param key
+ * @return
+ */
 uint64_t pmLinHash::getRealHashIdx(const uint64_t& key) {
   uint64_t idx = hashFunc(key, meta->level);
   if (idx < meta->next) {
@@ -211,8 +250,12 @@ uint64_t pmLinHash::getRealHashIdx(const uint64_t& key) {
   return idx;
 }
 
-// append auto overflow
-// return 1 if needToSplit , it will automatically allocate new overflowTable
+/**
+ * @brief append an entry to a bucket, it will automatically newOverflowTable
+ * @param startTable the table addr of the first normal table of a bucket
+ * @param kv entry wait to append
+ * @return return 1 if needToSplit
+ */
 int pmLinHash::appendAutoOf(pm_table* startTable, const entry& kv) {
   pm_table* cur = startTable;
   int needTosplit = 0;
@@ -232,7 +275,16 @@ int pmLinHash::appendAutoOf(pm_table* startTable, const entry& kv) {
 // insert auto overflow
 // it will allocate new overflow table OR just go through
 // it never change fill_num
-int pmLinHash::insertAutoOf(pm_table* startTable, const entry& kv, uint64_t pos) {
+/**
+ * @brief insert an entry to a bucket, it will automatically newOverflowTable
+ * @param startTable the table addr of the first normal table of a bucket
+ * @param kv entry wait to insert
+ * @param pos position wait to insert in
+ * @return nothing
+ */
+int pmLinHash::insertAutoOf(pm_table* startTable,
+                            const entry& kv,
+                            uint64_t pos) {
   uint64_t n = pos / TABLE_SIZE;
   while (n > 0) {
     if (startTable->next_offset != NEXT_IS_NONE) {
@@ -246,7 +298,12 @@ int pmLinHash::insertAutoOf(pm_table* startTable, const entry& kv, uint64_t pos)
   return 0;
 }
 
-// update fill_num and next_offset
+/**
+ * @brief update related table->fill_num and table->next_offset
+ * @param startTable the first normal table of a bucket
+ * @param fill_num the total number of entries of a bucket
+ * @return nothing
+ */
 int pmLinHash::updateAfterSplit(pm_table* startTable, uint64_t fill_num) {
   // todo: wait to optimizing, the code below is ugly
   // first count original number of overflow tables
@@ -271,7 +328,11 @@ int pmLinHash::updateAfterSplit(pm_table* startTable, uint64_t fill_num) {
   return 0;
 }
 
-// never include startTable itself
+/**
+ * @brief count the number of tables after the table,it never includes itself
+ * @param startTable
+ * @return return count
+ */
 int pmLinHash::cntTablesSince(pm_table* startTable) {
   int cnt = 0;
   while (startTable->next_offset != NEXT_IS_NONE) {
@@ -303,8 +364,8 @@ entry* pmLinHash::searchEntry(const uint64_t& key) {
  * @return the table of the key
  */
 pm_table* pmLinHash::searchEnteyWithPage(const uint64_t& key,
-                                       uint64_t* pos,
-                                       pm_table** previousTable) {
+                                         uint64_t* pos,
+                                         pm_table** previousTable) {
   uint64_t idx = getRealHashIdx(key);
   pm_table* t = getNmTableFromIdx(idx);
   pm_table* pre = nullptr;
@@ -329,17 +390,10 @@ pm_table* pmLinHash::searchEnteyWithPage(const uint64_t& key,
 }
 
 /**
- * PMLHash
- *
- * @param  {uint64_t} key   : inserted key
- * @param  {uint64_t} value : inserted value
- * @return {int}            : success: 0. fail: -1
- *
- * insert the new kv pair in the hash
- *
- * always insert the entry in the first empty slot
- *
- * if the hash table is full then split is triggered
+ * @brief insert entry
+ * @param key
+ * @param value
+ * @return return -1 if full, 0 if success
  */
 int pmLinHash::insert(const uint64_t& key, const uint64_t& value) {
   std::unique_lock wr_lock(rwMutx);
@@ -363,13 +417,10 @@ int pmLinHash::insert(const uint64_t& key, const uint64_t& value) {
 }
 
 /**
- * PMLHash
- *
- * @param  {uint64_t} key   : the searched key
- * @param  {uint64_t} value : return value if found , else VALUE_NOT_FOUND
- * @return {int}            : 0 found, -1 not found
- *
- * search the target entry and return the value
+ * @brief search
+ * @param key
+ * @param value the value will be rewritten
+ * @return return -1 if not found ; 0 if success
  */
 int pmLinHash::search(const uint64_t& key, uint64_t& value) {
   std::shared_lock rd_lock(rwMutx);
@@ -383,13 +434,9 @@ int pmLinHash::search(const uint64_t& key, uint64_t& value) {
 }
 
 /**
- * PMLHash
- *
- * @param  {uint64_t} key : target key
- * @return {int}          : success: 0. fail: -1
- *
- * remove the target entry, move entries after forward
- * if the overflow table is empty, remove it from hash
+ * @brief remove
+ * @param key
+ * @return return -1 if not found, 0 if success
  */
 int pmLinHash::remove(const uint64_t& key) {
   std::unique_lock wr_lock(rwMutx);
@@ -423,13 +470,10 @@ int pmLinHash::remove(const uint64_t& key) {
 }
 
 /**
- * PMLHash
- *
- * @param  {uint64_t} key   : target key
- * @param  {uint64_t} value : new value
- * @return {int}            : success: 0. fail: -1
- *
- * update an existing entry
+ * @brief update
+ * @param key
+ * @param value
+ * @return -1 if not found , 0 if success
  */
 int pmLinHash::update(const uint64_t& key, const uint64_t& value) {
   std::unique_lock wr_lock(rwMutx);
@@ -444,7 +488,10 @@ int pmLinHash::update(const uint64_t& key, const uint64_t& value) {
   return 0;
 }
 
-// it will init mapped memory, call it after setting startAddr
+/**
+ * @brief init mapped file(pmem), call it after set start_addr
+ * @return nothing
+ */
 int pmLinHash::initMappedMem() {
   bzero(start_addr, FILE_SIZE);
   meta->init();
@@ -453,12 +500,19 @@ int pmLinHash::initMappedMem() {
   return 0;
 }
 
+/**
+ * @brief recover from mapped file(pmem)
+ * @return nothing
+ */
 int pmLinHash::recoverMappedMen() {
   // you don't need do anything!
   return 0;
 }
 
-// remove all ; it is not concurency-safe
+/**
+ * @brief remove all entries, it is never concurency-safe
+ * @return nothing
+ */
 int pmLinHash::clear() {
   initMappedMem();
   pmem_persist(start_addr, FILE_SIZE);
@@ -467,6 +521,10 @@ int pmLinHash::clear() {
 
 // -----------------------------------
 
+/**
+ * @brief print config, used in test
+ * @return
+ */
 int pmLinHash::showConfig() {
   printf("=========PMLHash Config=======\n");
   printf("- start_addr:%p\n", start_addr);
@@ -491,7 +549,12 @@ int pmLinHash::showConfig() {
   return 0;
 }
 
-int pmLinHash::showKV(const char* prefix) {
+/**
+ * @brief print all entries, used in test
+ * @param prefix the prefix string in front of every bucket
+ * @return
+ */
+int pmLinHash::showKV(const char* prefix = "") {
   printf("===========Table View=========\n");
   for (size_t i = 0; i < meta->size; i++) {
     pm_table* t = getNmTableFromIdx(i);
@@ -516,6 +579,10 @@ int pmLinHash::showKV(const char* prefix) {
   return 0;
 }
 
+/**
+ * @brief print bitmap, used in test
+ * @return 
+ */
 int pmLinHash::showBitMap() {
   printf("%s\n", bitmap->to_string().c_str());
   return 0;

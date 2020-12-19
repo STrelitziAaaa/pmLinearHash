@@ -1,9 +1,8 @@
 /**
  * * Created on 2020/12/19
- * * Editor: lwm 
+ * * Editor: lwm
  * * this file will provide many functions for pmLinHash_test.cc
  */
-
 
 #ifndef UTIL_H
 #define UTIL_H
@@ -69,8 +68,7 @@ int thread_routine(vector<std::pair<char, uint64_t>>& buf,
                    pmLinHash* f,
                    uint64_t tid,
                    uint64_t n_thread);
-int runYCSBBenchmark(const char* filePath, pmLinHash* f);
 int loadYCSBBenchmark(const char* filePath, pmLinHash* f);
-int runYCSBBenchmark(string filePath, pmLinHash* f, uint64_t n_thread);
+int runYCSBBenchmark(string filePath, pmLinHash* f, uint64_t n_thread = 1);
 
 #endif

@@ -12,7 +12,7 @@ static inline void assertFail(int x) {
 /**
  * @brief check and create file
  * @param filePath
- * @return return 0 if create ok; -1 if create error
+ * @return return -1 if create error; 0 if success
  */
 int chkAndCrtFile(const char* filePath) {
   struct stat fstate;
@@ -33,10 +33,12 @@ int chkAndCrtFile(const char* filePath) {
   return -1;
 }
 
-// constexpr uint64_t INSERT = 1;
-// constexpr uint64_t READ = 2;
-// map<std::string, uint64_t> TypeDict = {{"INSERT", INSERT}, {"READ", READ}};
-
+/**
+ * @brief load file and benchmark
+ * @param filePath
+ * @param f the db engine
+ * @return nothing
+ */
 int loadYCSBBenchmark(string filePath, pmLinHash* f) {
   std::ifstream in_(filePath);
   std::string typeStr;
@@ -59,38 +61,13 @@ int loadYCSBBenchmark(string filePath, pmLinHash* f) {
   return 0;
 }
 
-// deprecated
-// use runYCSBBenchmark(filepath , f , n_thread=1) instead;
-int runYCSBBenchmark(string filePath, pmLinHash* f) {
-  std::ifstream in_(filePath);
-  std::string typeStr;
-  uint64_t key;
-  double cnt = 0;
-  // we can't make a insertBuf and searchBuf
-  // we should make it come randomly
-  std::vector<std::pair<char, uint64_t>> keyBuf;
-  while (in_.good()) {
-    cnt++;
-    in_ >> typeStr >> key;
-    keyBuf.push_back(std::make_pair(TypeDict[typeStr], key));
-  }
-  auto t_start = std::chrono::system_clock::now();
-  for (auto& key : keyBuf) {
-    if (key.first == INSERT) {
-      f->insert(key.second, key.second);
-    } else {
-      uint64_t value;
-      assert(f->search(key.second, value) != -1);
-      assert(value == key.second);
-    }
-  }
-  auto t_end = std::chrono::system_clock::now();
-  auto dur = std::chrono::duration<double, std::milli>(t_end - t_start).count();
-  printf("run %s\tWTime: %fms \tOPS: %fM\tDelay: %fns\n", filePath.c_str(), dur,
-         cnt / (dur * 1000), dur * 1000 / cnt);
-  return 0;
-}
-
+/**
+ * @brief load file and benchmark
+ * @param filePath
+ * @param f the db engine
+ * @param n_thread the number of thread to run write/read
+ * @return
+ */
 int runYCSBBenchmark(string filePath, pmLinHash* f, uint64_t n_thread) {
   std::ifstream in_(filePath);
   std::string typeStr;
@@ -122,12 +99,23 @@ int runYCSBBenchmark(string filePath, pmLinHash* f, uint64_t n_thread) {
   return 0;
 }
 
+/**
+ * @brief test pmLinear construct
+ * @return
+ */
 pmLinHash* TestHashConstruct() {
   pmLinHash* f = new pmLinHash("./pmemFile");
   f->showConfig();
   return f;
 }
 
+/**
+ * @brief insert an entry with msg, only be called in TestHashInsert
+ * @param f the db engine
+ * @param key
+ * @param value
+ * @return
+ */
 int insertWithMsg(pmLinHash* f, const uint64_t& key, const uint64_t& value) {
   if (f->insert(key, value) != -1) {
     printf("|Insert| key:%zu,val:%zu\n", key, value);
@@ -137,6 +125,11 @@ int insertWithMsg(pmLinHash* f, const uint64_t& key, const uint64_t& value) {
   return 0;
 }
 
+/**
+ * @brief test pmLinearHash insert
+ * @param f the db engine
+ * @return
+ */
 int TestHashInsert(pmLinHash* f) {
   for (uint64_t i = 1; i <= HASH_SIZE; i++) {
     insertWithMsg(f, i, i);
@@ -150,6 +143,13 @@ int TestHashInsert(pmLinHash* f) {
   return 0;
 }
 
+/**
+ * @brief search an entry with msg, only be called in TestHashSearch
+ * @param f the db engine
+ * @param key
+ * @param value
+ * @return
+ */
 int searchWithMsg(pmLinHash* f, uint64_t& key, uint64_t& value) {
   if (f->search(key, value) != -1) {
     printf("|Search| key:%zu result value:%zu\n", key, value);
@@ -159,6 +159,11 @@ int searchWithMsg(pmLinHash* f, uint64_t& key, uint64_t& value) {
   return 0;
 }
 
+/**
+ * @brief test pmLinearHash search
+ * @param f the db engine
+ * @return
+ */
 int TestHashSearch(pmLinHash* f) {
   for (uint64_t i = 1; i <= HASH_SIZE; i++) {
     uint64_t value;
@@ -168,6 +173,13 @@ int TestHashSearch(pmLinHash* f) {
   return 0;
 }
 
+/**
+ * @brief update an entry with msg, only be called in TestHashUpdate
+ * @param f the db engine
+ * @param key
+ * @param value
+ * @return
+ */
 int updateWithMsg(pmLinHash* f, uint64_t& key, uint64_t& value) {
   if (f->update(key, value) == -1) {
     printf("|Update| key:%zu Not Found\n", key);
@@ -177,6 +189,11 @@ int updateWithMsg(pmLinHash* f, uint64_t& key, uint64_t& value) {
   return 0;
 }
 
+/**
+ * @brief test pmLinearHash update
+ * @param f the db engine
+ * @return
+ */
 int TestHashUpdate(pmLinHash* f) {
   for (uint64_t i = 1; i <= HASH_SIZE; i++) {
     uint64_t key = i;
@@ -187,6 +204,12 @@ int TestHashUpdate(pmLinHash* f) {
   return 0;
 }
 
+/**
+ * @brief remove an entry with msg, only be called in TestHashRemove
+ * @param f the db engine
+ * @param key
+ * @return
+ */
 int removeWithMsg(pmLinHash* f, uint64_t& key) {
   if (f->remove(key) == -1) {
     printf("|Remove| key:%zu Not Found\n", key);
@@ -196,6 +219,11 @@ int removeWithMsg(pmLinHash* f, uint64_t& key) {
   return 0;
 }
 
+/**
+ * @brief test pmLinearHash remove
+ * @param f the db engine
+ * @return
+ */
 int TestHashRemove(pmLinHash* f) {
   for (uint64_t i = 1; i <= HASH_SIZE; i++) {
     removeWithMsg(f, i);
@@ -204,8 +232,13 @@ int TestHashRemove(pmLinHash* f) {
   return 0;
 }
 
+/**
+ * @brief test bitmap built-in method
+ * @param f the db engine, just use nullptr
+ * @return
+ */
 int TestBitMap(pmLinHash* f) {
-  bitmap_st* bm = f->getBitMapForTest();
+  bitmap_st* bm = new bitmap_st();
   bm->init();
   f->showBitMap();
   bm->set(0);
@@ -215,23 +248,33 @@ int TestBitMap(pmLinHash* f) {
   bm->reset(0);
   f->showBitMap();
   printf("first bit pos:%lu\n", bm->findFirstAvailable());
+  delete bm;
   return 0;
 }
 
+/**
+ * @brief insert n entries with msg, only be called in TestMultiThread
+ * @param f the db engine
+ * @param n insert n entries
+ * @param key
+ * @param tid the id of the thread
+ * @return
+ */
 int justInsertNWithMsg(pmLinHash* f, int n, uint64_t key, uint64_t tid) {
   srand(0);
   for (int i = 0; i < n; i++) {
     // uint64_t k = key * (rand() % 2) + rand() % 100;
     uint64_t k = key + i;
-    if (f->insert(k, k) != -1) {
-      printf("|Insert tid=%zu| key:%zu,val:%zu\n", tid, k, k);
-    } else {
-      printf("|Insert tid=%zu| key:%zu,val:%zu InsertErr\n", tid, k, k);
-    }
+    insertWithMsg(f, k, k);
   }
   return 0;
 }
 
+/**
+ * @brief test multiThread
+ * @param f the db engine
+ * @return 
+ */
 int TestMultiThread(pmLinHash* f) {
   f->clear();
   f->showKV();
@@ -249,6 +292,11 @@ int TestMultiThread(pmLinHash* f) {
   return 0;
 }
 
+/**
+ * @brief use a series of assert to test
+ * @param f the db engine
+ * @return 
+ */
 int AssertTEST(pmLinHash* f) {
   // the allowable size is between 300000 and 400000,
   // otherwise trigger memory size limit
@@ -316,6 +364,13 @@ int AssertTEST(pmLinHash* f) {
   return 0;
 }
 
+/**
+ * @brief YCSB benchmark
+ * @param f the db engine
+ * @param n_thread the number of thread to run
+ * @param path_prefix the file path prefix related to the root path of the project
+ * @return 
+ */
 int BenchmarkYCSB(pmLinHash* f, uint64_t n_thread, string path_prefix) {
   printf("=========YCSB Benchmark=======\n");
   printf("注:时间基本为纯Insert/Search时间,不包括读文件\tn_thread=%zu\n",
@@ -345,6 +400,14 @@ int BenchmarkYCSB(pmLinHash* f, uint64_t n_thread, string path_prefix) {
   return 0;
 }
 
+/**
+ * @brief the is worker thread to write and read from the pmLinearHash
+ * @param buf the entries waiting to write or read
+ * @param f the db engine
+ * @param tid thread id
+ * @param n_thread number of thread
+ * @return 
+ */
 int thread_routine(vector<std::pair<char, uint64_t>>& buf,
                    pmLinHash* f,
                    uint64_t tid,

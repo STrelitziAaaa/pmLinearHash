@@ -23,8 +23,8 @@ class pmLinHash {
 
   void split();
   uint64_t hashFunc(const uint64_t& key, const size_t& hash_size);
-  pm_table* newOverflowTable();
-  pm_table* newOverflowTable(pm_table* pre);
+  // pm_table* newOverflowTable();
+  pm_table* newOverflowTable(pm_table* pre = nullptr);
   int freeOverflowTable(uint64_t idx);
   int freeOverflowTable(pm_table* t);
   pm_table* newNormalTable();
@@ -58,15 +58,14 @@ class pmLinHash {
   int search(const uint64_t& key, uint64_t& value);
   int remove(const uint64_t& key);
   int update(const uint64_t& key, const uint64_t& value);
+  int clear();
 
   int initMappedMem();
   int recoverMappedMen();
-  int clear();
 
   int showConfig();
   int showKV(const char* prefix = "");
   int showBitMap();
-  bitmap_st* getBitMapForTest() { return bitmap; }
 };
 
 #endif

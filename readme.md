@@ -1,4 +1,4 @@
-<img align="right" src="./static/db_logo.png" width=100px/>
+<img align="right" src="./static/db_logo.png" width=110px/>
 
 # pmLinearHash
 ![](https://img.shields.io/badge/pmLinearHash-v0.1-519dd9.svg) ![](https://img.shields.io/badge/platform-linux-lightgray.svg) ![](https://img.shields.io/badge/c++-std=c++17-blue.svg) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)  
@@ -19,6 +19,7 @@
     - [CRUD](#crud)
     - [GC](#gc)
     - [MultiThread](#multithread)
+    - [Doc](#doc)
   - [单线程YCSB性能测试](#单线程ycsb性能测试)
   - [多线程YCSB性能测试](#多线程ycsb性能测试)
   - [Comment](#comment)
@@ -419,7 +420,9 @@ cd ../bin
   std::unique_lock wr_lock(rwMutx);
   std::shared_lock rd_lock(rwMutx);
   ```
-  
+
+### Doc
+为每一个函数都添加了注释文档
 
 ## 单线程YCSB性能测试
 起初采用了一边读一边insert/search的方法,然后对getline的循环测流逝时间.  
