@@ -1,17 +1,4 @@
 #include "util.h"
-#include <assert.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <sys/stat.h>
-#include <unistd.h>
-#include <cstdio>
-#include <fstream>
-#include <iostream>
-#include <map>
-#include <sstream>
-#include <string>
-#include <thread>
-#include "pml_hash.h"
 
 using namespace std;
 
@@ -22,8 +9,11 @@ static inline void assertFail(int x) {
   assert(x == -1);
 }
 
-// check and create file
-// return 0 if create ok; -1 if create error
+/**
+ * @brief check and create file
+ * @param filePath
+ * @return return 0 if create ok; -1 if create error
+ */
 int chkAndCrtFile(const char* filePath) {
   struct stat fstate;
   if (!stat(filePath, &fstate)) {
@@ -47,7 +37,7 @@ int chkAndCrtFile(const char* filePath) {
 // constexpr uint64_t READ = 2;
 // map<std::string, uint64_t> TypeDict = {{"INSERT", INSERT}, {"READ", READ}};
 
-int loadYCSBBenchmark(string filePath, PMLHash* f) {
+int loadYCSBBenchmark(string filePath, pmLinHash* f) {
   std::ifstream in_(filePath);
   std::string typeStr;
   uint64_t key;
@@ -71,7 +61,7 @@ int loadYCSBBenchmark(string filePath, PMLHash* f) {
 
 // deprecated
 // use runYCSBBenchmark(filepath , f , n_thread=1) instead;
-int runYCSBBenchmark(string filePath, PMLHash* f) {
+int runYCSBBenchmark(string filePath, pmLinHash* f) {
   std::ifstream in_(filePath);
   std::string typeStr;
   uint64_t key;
@@ -101,7 +91,7 @@ int runYCSBBenchmark(string filePath, PMLHash* f) {
   return 0;
 }
 
-int runYCSBBenchmark(string filePath, PMLHash* f, uint64_t n_thread) {
+int runYCSBBenchmark(string filePath, pmLinHash* f, uint64_t n_thread) {
   std::ifstream in_(filePath);
   std::string typeStr;
   uint64_t key;
@@ -132,13 +122,13 @@ int runYCSBBenchmark(string filePath, PMLHash* f, uint64_t n_thread) {
   return 0;
 }
 
-PMLHash* TestHashConstruct() {
-  PMLHash* f = new PMLHash("./pmemFile");
+pmLinHash* TestHashConstruct() {
+  pmLinHash* f = new pmLinHash("./pmemFile");
   f->showConfig();
   return f;
 }
 
-int insertWithMsg(PMLHash* f, const uint64_t& key, const uint64_t& value) {
+int insertWithMsg(pmLinHash* f, const uint64_t& key, const uint64_t& value) {
   if (f->insert(key, value) != -1) {
     printf("|Insert| key:%zu,val:%zu\n", key, value);
   } else {
@@ -147,7 +137,7 @@ int insertWithMsg(PMLHash* f, const uint64_t& key, const uint64_t& value) {
   return 0;
 }
 
-int TestHashInsert(PMLHash* f) {
+int TestHashInsert(pmLinHash* f) {
   for (uint64_t i = 1; i <= HASH_SIZE; i++) {
     insertWithMsg(f, i, i);
   }
@@ -160,7 +150,7 @@ int TestHashInsert(PMLHash* f) {
   return 0;
 }
 
-int searchWithMsg(PMLHash* f, uint64_t& key, uint64_t& value) {
+int searchWithMsg(pmLinHash* f, uint64_t& key, uint64_t& value) {
   if (f->search(key, value) != -1) {
     printf("|Search| key:%zu result value:%zu\n", key, value);
   } else {
@@ -169,7 +159,7 @@ int searchWithMsg(PMLHash* f, uint64_t& key, uint64_t& value) {
   return 0;
 }
 
-int TestHashSearch(PMLHash* f) {
+int TestHashSearch(pmLinHash* f) {
   for (uint64_t i = 1; i <= HASH_SIZE; i++) {
     uint64_t value;
     uint64_t key = i;
@@ -178,7 +168,7 @@ int TestHashSearch(PMLHash* f) {
   return 0;
 }
 
-int updateWithMsg(PMLHash* f, uint64_t& key, uint64_t& value) {
+int updateWithMsg(pmLinHash* f, uint64_t& key, uint64_t& value) {
   if (f->update(key, value) == -1) {
     printf("|Update| key:%zu Not Found\n", key);
   } else {
@@ -187,7 +177,7 @@ int updateWithMsg(PMLHash* f, uint64_t& key, uint64_t& value) {
   return 0;
 }
 
-int TestHashUpdate(PMLHash* f) {
+int TestHashUpdate(pmLinHash* f) {
   for (uint64_t i = 1; i <= HASH_SIZE; i++) {
     uint64_t key = i;
     uint64_t value = key + 1;
@@ -197,7 +187,7 @@ int TestHashUpdate(PMLHash* f) {
   return 0;
 }
 
-int removeWithMsg(PMLHash* f, uint64_t& key) {
+int removeWithMsg(pmLinHash* f, uint64_t& key) {
   if (f->remove(key) == -1) {
     printf("|Remove| key:%zu Not Found\n", key);
   } else {
@@ -206,7 +196,7 @@ int removeWithMsg(PMLHash* f, uint64_t& key) {
   return 0;
 }
 
-int TestHashRemove(PMLHash* f) {
+int TestHashRemove(pmLinHash* f) {
   for (uint64_t i = 1; i <= HASH_SIZE; i++) {
     removeWithMsg(f, i);
   }
@@ -214,7 +204,7 @@ int TestHashRemove(PMLHash* f) {
   return 0;
 }
 
-int TestBitMap(PMLHash* f) {
+int TestBitMap(pmLinHash* f) {
   bitmap_st* bm = f->getBitMapForTest();
   bm->init();
   f->showBitMap();
@@ -228,7 +218,7 @@ int TestBitMap(PMLHash* f) {
   return 0;
 }
 
-int justInsertNWithMsg(PMLHash* f, int n, uint64_t key, uint64_t tid) {
+int justInsertNWithMsg(pmLinHash* f, int n, uint64_t key, uint64_t tid) {
   srand(0);
   for (int i = 0; i < n; i++) {
     // uint64_t k = key * (rand() % 2) + rand() % 100;
@@ -242,7 +232,7 @@ int justInsertNWithMsg(PMLHash* f, int n, uint64_t key, uint64_t tid) {
   return 0;
 }
 
-int TestMultiThread(PMLHash* f) {
+int TestMultiThread(pmLinHash* f) {
   f->clear();
   f->showKV();
 
@@ -259,7 +249,7 @@ int TestMultiThread(PMLHash* f) {
   return 0;
 }
 
-int AssertTEST(PMLHash* f) {
+int AssertTEST(pmLinHash* f) {
   // the allowable size is between 300000 and 400000,
   // otherwise trigger memory size limit
   const int N = 300000;
@@ -326,7 +316,7 @@ int AssertTEST(PMLHash* f) {
   return 0;
 }
 
-int BenchmarkYCSB(PMLHash* f, uint64_t n_thread, string path_prefix) {
+int BenchmarkYCSB(pmLinHash* f, uint64_t n_thread, string path_prefix) {
   printf("=========YCSB Benchmark=======\n");
   printf("注:时间基本为纯Insert/Search时间,不包括读文件\tn_thread=%zu\n",
          n_thread);
@@ -356,7 +346,7 @@ int BenchmarkYCSB(PMLHash* f, uint64_t n_thread, string path_prefix) {
 }
 
 int thread_routine(vector<std::pair<char, uint64_t>>& buf,
-                   PMLHash* f,
+                   pmLinHash* f,
                    uint64_t tid,
                    uint64_t n_thread) {
   auto size = buf.size();

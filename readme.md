@@ -9,6 +9,7 @@
 
 - [pmLinearHash](#pmlinearhash)
   - [TOC](#toc)
+  - [Todo](#todo)
   - [Intro](#intro)
   - [Env Config](#env-config)
     - [NVM](#nvm)
@@ -18,7 +19,6 @@
     - [CRUD](#crud)
     - [GC](#gc)
     - [MultiThread](#multithread)
-  - [Todo](#todo)
   - [单线程YCSB性能测试](#单线程ycsb性能测试)
   - [多线程YCSB性能测试](#多线程ycsb性能测试)
   - [Comment](#comment)
@@ -26,9 +26,12 @@
     - [About MultiThread](#about-multithread)
   - [Concurrency safe](#concurrency-safe)
     - [Fine-grained mutex](#fine-grained-mutex)
+  - [Unsolved questions](#unsolved-questions)
 
 <!-- /TOC -->
-
+## Todo
+- [ ] NVM环境配置
+- [ ] 进入/build编译,再进入/bin运行,过于繁琐
 ## Intro
 To inplement index in a DBMS, we have two main methods:
   - b/b+ tree
@@ -417,8 +420,7 @@ cd ../bin
   std::shared_lock rd_lock(rwMutx);
   ```
   
-## Todo
-- [ ] NVM环境配置
+
 ## 单线程YCSB性能测试
 起初采用了一边读一边insert/search的方法,然后对getline的循环测流逝时间.  
 后来考虑到多线程性能测试的需要,因为多线程不可能让每个线程去并行读硬盘(总线总是串行的),所以改用了先把数据读进内存缓冲区,再insert/search(读/写)  
@@ -479,7 +481,73 @@ run .././benchmark/10w-rw-100-0-load.txt        WTime: 83.637800ms      OPS: 1.1
 
 ## Comment
 ### About CRUD
-合适封装的高可复用基本函数模块
+设计合适抽象程度的高可复用基本函数  
+以 `inner_search` 为例,无论是 `insert` , `remove` , 还是 `search` , `update` ,都依赖于内部的一个 `inner_search` 函数,但是他们又有不同的需求,比如 `remove` 要求不仅要找到元素,还要找到元素所在的页,以及前面的一页. 而其他功能则没有这样的需求.
+- 在我的设计中, 使用了 `SearchEntryWithPage` 作为baseFunction,它拥有最多的参数:
+  ```cpp
+  pm_table* searchEnteyWithPage(const uint64_t& key,
+                                uint64_t* pos = nullptr,
+                                pm_table** previousTable = nullptr);
+  ```
+- `entry* pmLinHash::searchEntry(const uint64_t& key)`作为一个简单方便的api,内部则是调用了 `searchEntryWithPage`
+  <details>
+  <summary>SearchEntryWithPage</summary>
+
+  ```cpp
+  /**
+   * @brief this will just be used in `remove()`
+   * @param key
+   * @param pos the position of the key in the table
+   * @param previousTable the previous table of the return table
+   * @return the table of the key
+   */
+  pm_table* pmLinHash::searchEnteyWithPage(const uint64_t& key,
+                                        uint64_t* pos,
+                                        pm_table** previousTable) {
+    uint64_t idx = getRealHashIdx(key);
+    pm_table* t = getNmTableFromIdx(idx);
+    pm_table* pre = nullptr;
+    while (1) {
+      int pos_ = t->pos(key);
+      if (pos_ >= 0) {
+        if (pos != nullptr) {
+          *pos = uint64_t(pos_);
+        }
+        if (previousTable != nullptr) {
+          *previousTable = pre;
+        }
+        return t;
+      }
+      if (t->next_offset == NEXT_IS_NONE) {
+        break;
+      }
+      pre = t;
+      t = getOfTableFromIdx(t->next_offset);
+    }
+    return nullptr;
+  }
+  ```
+  </details>
+  <details>
+  <summary>SearchEntry</summary>
+
+  ```cpp
+  /**
+   * @brief searchEntry with key
+   * @param key
+   * @return return nullptr if not found
+   */
+  entry* pmLinHash::searchEntry(const uint64_t& key) {
+    uint64_t pos;
+    pm_table* t = searchEnteyWithPage(key, &pos);
+    if (t == nullptr) {
+      return nullptr;
+    }
+    return t->index(pos);
+  }
+  ```
+  </details>
+
 ### About MultiThread
 - 多线程由于有锁的竞态,导致其实效率很低下,这说明我的设计不太好(只是随意的添加了锁将并行操作改串行).  
   - 此外并发线程数的选择上,也不能太多,毕竟硬件线程有限.  
@@ -516,3 +584,6 @@ run .././benchmark/10w-rw-100-0-load.txt        WTime: 83.637800ms      OPS: 1.1
       - 一般的解决方法是延时删除,简单将对应删除位置1,保证临近的update仍然访问到这个键值.后续在定时gc中锁全表,真正删除键值
   - Remove
     - 也许可以延时删除
+## Unsolved questions
+- 如果a.cc文件需要引入一个头文件<unistd.h>,而a.h不需要,那么应该在a.cc还是a.h引入呢?
+  - 目前的做法是在a.h引入,这样a.cc只需要引入"a.h"即可,比较干净

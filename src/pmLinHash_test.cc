@@ -1,6 +1,4 @@
-#include <sstream>
-#include <thread>
-#include "pml_hash.h"
+#include "pmLinHash.h"
 #include "util.h"
 
 // g++ pml_hash_testing.cc pml_hash.cc util.cc -o pml_hash_testing -lpmem
@@ -9,7 +7,7 @@
 int main() {
   // you have to return the original object,instead of use `=` in
   // TestHashConstruct(&f) because it will call `unmap` if it die;
-  PMLHash* f = TestHashConstruct();
+  pmLinHash* f = TestHashConstruct();
   // AssertTEST(f);
   f->clear();
   printf("-----------Clear All----------\n");

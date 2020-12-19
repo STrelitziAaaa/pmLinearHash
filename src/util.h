@@ -1,3 +1,10 @@
+/**
+ * * Created on 2020/12/19
+ * * Editor: lwm 
+ * * this file will provide many functions for pmLinHash_test.cc
+ */
+
+
 #ifndef UTIL_H
 #define UTIL_H
 #include <assert.h>
@@ -5,11 +12,13 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <sys/stat.h>
+#include <unistd.h>
 #include <fstream>
 #include <map>
 #include <sstream>
 #include <string>
-#include "pml_hash.h"
+#include <thread>
+#include "pmLinHash.h"
 
 using namespace std;
 
@@ -42,26 +51,26 @@ class Error : public exception {
 
 int chkAndCrtFile(const char* filePath);
 
-int TestMultiThread(PMLHash* f);
-int TestBitMap(PMLHash* f);
-int TestHashRemove(PMLHash* f);
-int removeWithMsg(PMLHash* f, uint64_t& key);
-int TestHashUpdate(PMLHash* f);
-int updateWithMsg(PMLHash* f, uint64_t& key, uint64_t& value);
-int TestHashSearch(PMLHash* f);
-int searchWithMsg(PMLHash* f, uint64_t& key, uint64_t& value);
-int TestHashInsert(PMLHash* f);
-int insertWithMsg(PMLHash* f, const uint64_t& key, const uint64_t& value);
-PMLHash* TestHashConstruct();
+int TestMultiThread(pmLinHash* f);
+int TestBitMap(pmLinHash* f);
+int TestHashRemove(pmLinHash* f);
+int removeWithMsg(pmLinHash* f, uint64_t& key);
+int TestHashUpdate(pmLinHash* f);
+int updateWithMsg(pmLinHash* f, uint64_t& key, uint64_t& value);
+int TestHashSearch(pmLinHash* f);
+int searchWithMsg(pmLinHash* f, uint64_t& key, uint64_t& value);
+int TestHashInsert(pmLinHash* f);
+int insertWithMsg(pmLinHash* f, const uint64_t& key, const uint64_t& value);
+pmLinHash* TestHashConstruct();
 
-int AssertTEST(PMLHash* f);
-int BenchmarkYCSB(PMLHash* f, uint64_t n_thread = 1, string path_prefix = "");
+int AssertTEST(pmLinHash* f);
+int BenchmarkYCSB(pmLinHash* f, uint64_t n_thread = 1, string path_prefix = "");
 int thread_routine(vector<std::pair<char, uint64_t>>& buf,
-                   PMLHash* f,
+                   pmLinHash* f,
                    uint64_t tid,
                    uint64_t n_thread);
-int runYCSBBenchmark(const char* filePath, PMLHash* f);
-int loadYCSBBenchmark(const char* filePath, PMLHash* f);
-int runYCSBBenchmark(string filePath, PMLHash* f, uint64_t n_thread);
+int runYCSBBenchmark(const char* filePath, pmLinHash* f);
+int loadYCSBBenchmark(const char* filePath, pmLinHash* f);
+int runYCSBBenchmark(string filePath, pmLinHash* f, uint64_t n_thread);
 
 #endif

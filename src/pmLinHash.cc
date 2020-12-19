@@ -1,29 +1,19 @@
-#include "pml_hash.h"
-#include <assert.h>
-#include <fcntl.h>
-#include <sys/mman.h>
-#include <sys/stat.h>
-#include <unistd.h>
-#include <atomic>
-#include <map>
+#include "pmLinHash.h"
 #include "util.h"
 
 thread_local pm_err pmError;
 
+
 /**
- * PMLHash::PMLHash
- *
- * @param  {char*} file_path : the file path of data file
- * if the data file exist, open it and recover the hash
- * if the data file does not exist, create it and initial the hash
+ * @brief construct function of pmLinHash
+ * @param file_path
  */
-PMLHash::PMLHash(const char* file_path) {
+pmLinHash::pmLinHash(const char* file_path) {
   // you must check whether file exists first
-  // because pmem_map_file with PMEM_FILE_CREATE|PMEM_FILE_EXCL will fail
+  // otherwise pmem_map_file with PMEM_FILE_CREATE|PMEM_FILE_EXCL will fail
   // directly if file exists instead of setting errno
   // so first stat() will help to avoid invoking pmem_map_file twice
   bool fileExists = chkAndCrtFile(file_path);
-
   size_t mapped_len;
   int is_pmem;
   uint8_t* f = (uint8_t*)pmem_map_file(file_path, FILE_SIZE, PMEM_FILE_CREATE,
@@ -57,7 +47,7 @@ PMLHash::PMLHash(const char* file_path) {
  *
  * unmap and close the data file
  */
-PMLHash::~PMLHash() {
+pmLinHash::~pmLinHash() {
   pmem_unmap(start_addr, FILE_SIZE);
 }
 /**
@@ -66,7 +56,7 @@ PMLHash::~PMLHash() {
  * split the hash table indexed by the meta->next
  * update the metadata
  */
-void PMLHash::split() {
+void pmLinHash::split() {
   pm_table* oldTable = getNmTableFromIdx(meta->next);
   pm_table* curTable = oldTable;
   pm_table* newTable = newNormalTable();
@@ -109,7 +99,7 @@ void PMLHash::split() {
  * need to hash the key with proper hash function first
  * then calculate the index by N module
  */
-uint64_t PMLHash::hashFunc(const uint64_t& key, const size_t& level) {
+uint64_t pmLinHash::hashFunc(const uint64_t& key, const size_t& level) {
   return key % uint64_t(N_LEVEL(level));
 }
 
@@ -122,7 +112,7 @@ uint64_t PMLHash::hashFunc(const uint64_t& key, const size_t& level) {
  *
  * @fixed: just use overflow_addr + meta.overflow_num to compute the new addr
  */
-pm_table* PMLHash::newOverflowTable() {
+pm_table* pmLinHash::newOverflowTable() {
   uint64_t offset = bitmap->findFirstAvailable();
   if (offset == BITMAP_SIZE) {
     // after throw this msg, the db may still can insert other kv, but we still
@@ -139,26 +129,26 @@ pm_table* PMLHash::newOverflowTable() {
   return table;
 }
 
-pm_table* PMLHash::newOverflowTable(pm_table* pre) {
+pm_table* pmLinHash::newOverflowTable(pm_table* pre) {
   pm_table* table = newOverflowTable();
   pre->next_offset = getIdxFromOfTable(table);
   return table;
 }
 
 // if this table have previousTable, you should set previousTable.next_offset
-int PMLHash::freeOverflowTable(uint64_t idx) {
+int pmLinHash::freeOverflowTable(uint64_t idx) {
   bitmap->reset(idx);
   meta->overflow_num--;
   pmem_persist(&(meta->overflow_num), sizeof(uint64_t));
   return 0;
 }
 
-int PMLHash::freeOverflowTable(pm_table* t) {
+int pmLinHash::freeOverflowTable(pm_table* t) {
   return freeOverflowTable(getIdxFromOfTable(t));
 }
 
 // it will use meta.size to address , and init table
-pm_table* PMLHash::newNormalTable() {
+pm_table* pmLinHash::newNormalTable() {
   if (meta->size >= NORMAL_TAB_SIZE) {
     pmError.set(NmMemoryLimitErr);
     throw Error("newNormalTable: memory size limit");
@@ -170,35 +160,35 @@ pm_table* PMLHash::newNormalTable() {
 }
 
 // NmTable : Normal Table, which is not a overflow table
-pm_table* PMLHash::getNmTableFromIdx(uint64_t idx) {
+pm_table* pmLinHash::getNmTableFromIdx(uint64_t idx) {
   if (idx == NEXT_IS_NONE) {
     return nullptr;
   }
   return (pm_table*)((pm_table*)table_arr + idx);
 }
 // OfTable : Overflow Table
-pm_table* PMLHash::getOfTableFromIdx(uint64_t idx) {
+pm_table* pmLinHash::getOfTableFromIdx(uint64_t idx) {
   if (idx == NEXT_IS_NONE) {
     return nullptr;
   }
   return (pm_table*)((pm_table*)overflow_addr + idx);
 }
 
-uint64_t PMLHash::getIdxFromTable(pm_table* start, pm_table* t) {
+uint64_t pmLinHash::getIdxFromTable(pm_table* start, pm_table* t) {
   return (t - start);
 }
 
 // get index from overflow table
-uint64_t PMLHash::getIdxFromOfTable(pm_table* t) {
+uint64_t pmLinHash::getIdxFromOfTable(pm_table* t) {
   return getIdxFromTable((pm_table*)overflow_addr, t);
 }
 
-uint64_t PMLHash::getIdxFromNmTable(pm_table* t) {
+uint64_t pmLinHash::getIdxFromNmTable(pm_table* t) {
   return getIdxFromTable((pm_table*)start_addr, t);
 }
 
 // deprecated: it's used only once and we can searchEntry directly instead.
-bool PMLHash::checkDupKey(const uint64_t& key) {
+bool pmLinHash::checkDupKey(const uint64_t& key) {
   entry* e = searchEntry(key);
   if (e != nullptr) {
     return true;
@@ -206,14 +196,14 @@ bool PMLHash::checkDupKey(const uint64_t& key) {
   return false;
 }
 
-uint64_t PMLHash::splitOldIdx() {
+uint64_t pmLinHash::splitOldIdx() {
   return meta->next;
 }
-uint64_t PMLHash::splitNewIdx() {
+uint64_t pmLinHash::splitNewIdx() {
   return meta->next + N_LEVEL(meta->level);
 }
 
-uint64_t PMLHash::getRealHashIdx(const uint64_t& key) {
+uint64_t pmLinHash::getRealHashIdx(const uint64_t& key) {
   uint64_t idx = hashFunc(key, meta->level);
   if (idx < meta->next) {
     idx = hashFunc(key, meta->level + 1);
@@ -223,7 +213,7 @@ uint64_t PMLHash::getRealHashIdx(const uint64_t& key) {
 
 // append auto overflow
 // return 1 if needToSplit , it will automatically allocate new overflowTable
-int PMLHash::appendAutoOf(pm_table* startTable, const entry& kv) {
+int pmLinHash::appendAutoOf(pm_table* startTable, const entry& kv) {
   pm_table* cur = startTable;
   int needTosplit = 0;
   while (cur->append(kv.key, kv.value) == -1) {
@@ -242,7 +232,7 @@ int PMLHash::appendAutoOf(pm_table* startTable, const entry& kv) {
 // insert auto overflow
 // it will allocate new overflow table OR just go through
 // it never change fill_num
-int PMLHash::insertAutoOf(pm_table* startTable, const entry& kv, uint64_t pos) {
+int pmLinHash::insertAutoOf(pm_table* startTable, const entry& kv, uint64_t pos) {
   uint64_t n = pos / TABLE_SIZE;
   while (n > 0) {
     if (startTable->next_offset != NEXT_IS_NONE) {
@@ -257,7 +247,7 @@ int PMLHash::insertAutoOf(pm_table* startTable, const entry& kv, uint64_t pos) {
 }
 
 // update fill_num and next_offset
-int PMLHash::updateAfterSplit(pm_table* startTable, uint64_t fill_num) {
+int pmLinHash::updateAfterSplit(pm_table* startTable, uint64_t fill_num) {
   // todo: wait to optimizing, the code below is ugly
   // first count original number of overflow tables
   int n = cntTablesSince(startTable);
@@ -282,7 +272,7 @@ int PMLHash::updateAfterSplit(pm_table* startTable, uint64_t fill_num) {
 }
 
 // never include startTable itself
-int PMLHash::cntTablesSince(pm_table* startTable) {
+int pmLinHash::cntTablesSince(pm_table* startTable) {
   int cnt = 0;
   while (startTable->next_offset != NEXT_IS_NONE) {
     startTable = getOfTableFromIdx(startTable->next_offset);
@@ -291,37 +281,39 @@ int PMLHash::cntTablesSince(pm_table* startTable) {
   return cnt;
 }
 
-// return nullptr if not found
-entry* PMLHash::searchEntry(const uint64_t& key) {
-  uint64_t idx = getRealHashIdx(key);
-  pm_table* t = getNmTableFromIdx(idx);
-
-  while (1) {
-    int pos = t->pos(key);
-    if (pos >= 0) {
-      return &(t->index(pos));
-    }
-    if (t->next_offset == NEXT_IS_NONE) {
-      break;
-    }
-    t = getOfTableFromIdx(t->next_offset);
+/**
+ * @brief searchEntry with key
+ * @param key
+ * @return return nullptr if not found
+ */
+entry* pmLinHash::searchEntry(const uint64_t& key) {
+  uint64_t pos;
+  pm_table* t = searchEnteyWithPage(key, &pos);
+  if (t == nullptr) {
+    return nullptr;
   }
-  return nullptr;
+  return t->index(pos);
 }
 
 /**
  * @brief this will just be used in `remove()`
  * @param key
+ * @param pos the position of the key in the table
  * @param previousTable the previous table of the return table
- * @return pm_table* where key is in
+ * @return the table of the key
  */
-pm_table* PMLHash::searchPage(const uint64_t& key, pm_table** previousTable) {
+pm_table* pmLinHash::searchEnteyWithPage(const uint64_t& key,
+                                       uint64_t* pos,
+                                       pm_table** previousTable) {
   uint64_t idx = getRealHashIdx(key);
   pm_table* t = getNmTableFromIdx(idx);
   pm_table* pre = nullptr;
   while (1) {
-    int pos = t->pos(key);
-    if (pos >= 0) {
+    int pos_ = t->pos(key);
+    if (pos_ >= 0) {
+      if (pos != nullptr) {
+        *pos = uint64_t(pos_);
+      }
       if (previousTable != nullptr) {
         *previousTable = pre;
       }
@@ -349,7 +341,7 @@ pm_table* PMLHash::searchPage(const uint64_t& key, pm_table** previousTable) {
  *
  * if the hash table is full then split is triggered
  */
-int PMLHash::insert(const uint64_t& key, const uint64_t& value) {
+int pmLinHash::insert(const uint64_t& key, const uint64_t& value) {
   std::unique_lock wr_lock(rwMutx);
 
   if (searchEntry(key) != nullptr) {
@@ -379,7 +371,7 @@ int PMLHash::insert(const uint64_t& key, const uint64_t& value) {
  *
  * search the target entry and return the value
  */
-int PMLHash::search(const uint64_t& key, uint64_t& value) {
+int pmLinHash::search(const uint64_t& key, uint64_t& value) {
   std::shared_lock rd_lock(rwMutx);
 
   entry* e = searchEntry(key);
@@ -399,25 +391,26 @@ int PMLHash::search(const uint64_t& key, uint64_t& value) {
  * remove the target entry, move entries after forward
  * if the overflow table is empty, remove it from hash
  */
-int PMLHash::remove(const uint64_t& key) {
+int pmLinHash::remove(const uint64_t& key) {
   std::unique_lock wr_lock(rwMutx);
   // you should find its previous table
   pm_table* pre = nullptr;
-  pm_table* t = searchPage(key, &pre);
+  uint64_t pos;
+  pm_table* t = searchEnteyWithPage(key, &pos, &pre);
   if (t == nullptr) {
     pmError.set(NotFoundErr);
     return -1;
   }
 
-  entry& lastKV = t->index(t->fill_num - 1);
-  t->insert(lastKV.key, lastKV.value, t->pos(key));
+  entry* lastKV = t->index(t->fill_num - 1);
+  t->insert(lastKV->key, lastKV->value, pos);
 
   while (t->next_offset != NEXT_IS_NONE) {
     pre = t;
     t = getOfTableFromIdx(t->next_offset);
-    entry& lastKV = t->index(t->fill_num - 1);
+    entry* lastKV = t->index(t->fill_num - 1);
     assert(pre->fill_num == TABLE_SIZE);
-    pre->insert(lastKV.key, lastKV.value, TABLE_SIZE - 1);
+    pre->insert(lastKV->key, lastKV->value, TABLE_SIZE - 1);
   }
 
   if (--(t->fill_num) == 0 && pre != nullptr) {
@@ -438,7 +431,7 @@ int PMLHash::remove(const uint64_t& key) {
  *
  * update an existing entry
  */
-int PMLHash::update(const uint64_t& key, const uint64_t& value) {
+int pmLinHash::update(const uint64_t& key, const uint64_t& value) {
   std::unique_lock wr_lock(rwMutx);
 
   entry* e = searchEntry(key);
@@ -452,7 +445,7 @@ int PMLHash::update(const uint64_t& key, const uint64_t& value) {
 }
 
 // it will init mapped memory, call it after setting startAddr
-int PMLHash::initMappedMem() {
+int pmLinHash::initMappedMem() {
   bzero(start_addr, FILE_SIZE);
   meta->init();
   bitmap->init();
@@ -460,13 +453,13 @@ int PMLHash::initMappedMem() {
   return 0;
 }
 
-int PMLHash::recoverMappedMen() {
+int pmLinHash::recoverMappedMen() {
   // you don't need do anything!
   return 0;
 }
 
 // remove all ; it is not concurency-safe
-int PMLHash::clear() {
+int pmLinHash::clear() {
   initMappedMem();
   pmem_persist(start_addr, FILE_SIZE);
   return 0;
@@ -474,7 +467,7 @@ int PMLHash::clear() {
 
 // -----------------------------------
 
-int PMLHash::showConfig() {
+int pmLinHash::showConfig() {
   printf("=========PMLHash Config=======\n");
   printf("- start_addr:%p\n", start_addr);
   printf("- overflow_addr:%p\n", overflow_addr);
@@ -498,7 +491,7 @@ int PMLHash::showConfig() {
   return 0;
 }
 
-int PMLHash::showKV(const char* prefix) {
+int pmLinHash::showKV(const char* prefix) {
   printf("===========Table View=========\n");
   for (size_t i = 0; i < meta->size; i++) {
     pm_table* t = getNmTableFromIdx(i);
@@ -523,7 +516,7 @@ int PMLHash::showKV(const char* prefix) {
   return 0;
 }
 
-int PMLHash::showBitMap() {
+int pmLinHash::showBitMap() {
   printf("%s\n", bitmap->to_string().c_str());
   return 0;
 }
