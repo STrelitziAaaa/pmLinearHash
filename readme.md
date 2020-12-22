@@ -63,7 +63,6 @@ The Repo was built&run&tested under the following platform
 cd build
 cmake ..
 make
-cd ../bin
 ./pmLinHash
 ```
 

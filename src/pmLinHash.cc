@@ -1,7 +1,7 @@
 #include "pmLinHash.h"
-#include "util.h"
-
-thread_local pm_err pmError;
+#include <errno.h>
+#include <map>
+#include "pmUtil.h"
 
 /**
  * @brief construct function of pmLinHash
@@ -31,9 +31,12 @@ pmLinHash::pmLinHash(const char* file_path) {
 
   if (fileExists) {
 // recover
-#define DEBUG
-#ifdef DEBUG
+#ifdef PMDEBUG
+    printf("debug: init()\n");
     initMappedMem();
+#else
+    printf("debug: recover()\n");
+    recoverMappedMen();
 #endif
   } else {
     // init
@@ -107,8 +110,8 @@ pm_table* pmLinHash::newOverflowTable(pm_table* pre) {
     // after throw this msg, the db may still can insert other kv, but we still
     // view it as full
     // we just throw error,instead of returning nullptr
-    pmError.set(OfMemoryLimitErr);
-    throw Error("newOverflowTable: memory size limit");
+    pmError_tls.OfmemoryLimit();
+    throw "newOverflowTable: memory size limit";
   }
   bitmap->set(offset);
   pm_table* table = (pm_table*)((pm_table*)overflow_addr + offset);
@@ -148,8 +151,8 @@ int pmLinHash::freeOverflowTable(pm_table* t) {
  */
 pm_table* pmLinHash::newNormalTable() {
   if (meta->size >= NORMAL_TAB_SIZE) {
-    pmError.set(NmMemoryLimitErr);
-    throw Error("newNormalTable: memory size limit");
+    pmError_tls.NmmemoryLimit();
+    throw "newNormalTable: memory size limit";
   }
   pm_table* table = (pm_table*)(table_arr + meta->size);
   table->init();
@@ -399,7 +402,7 @@ int pmLinHash::insert(const uint64_t& key, const uint64_t& value) {
   std::unique_lock wr_lock(rwMutx);
 
   if (searchEntry(key) != nullptr) {
-    pmError.set(DupKeyErr);
+    pmError_tls.dupkey();
     return -1;
   }
 
@@ -408,16 +411,21 @@ int pmLinHash::insert(const uint64_t& key, const uint64_t& value) {
                      entry::makeEntry(key, value))) {
       split();
     }
-  } catch (Error& e) {
-    pmError.perror("insert");
+  } catch (const char* msg) {
+    printf("%s\n", msg);
+    pmError_tls.perror("insert");
+    exit(EXIT_FAILURE);
     return -1;
   }
   pmem_persist(start_addr, FILE_SIZE);
+
+  pmError_tls.success();
   return 0;
 }
 
 /**
- * @brief search
+ * @brief deprecated: use pmLinHash::search(const uint64_t& key,
+ * uint64_t* value) instead
  * @param key
  * @param value the value will be rewritten
  * @return return -1 if not found ; 0 if success
@@ -427,9 +435,31 @@ int pmLinHash::search(const uint64_t& key, uint64_t& value) {
 
   entry* e = searchEntry(key);
   if (e == nullptr) {
+    pmError_tls.notfound();
     return -1;
   }
   value = e->value;
+
+  pmError_tls.success();
+  return 0;
+}
+
+/**
+ * @brief search
+ * @param key
+ * @param value the value will be rewritten
+ * @return return -1 if not found ; 0 if success
+ */
+int pmLinHash::search(const uint64_t& key, uint64_t* value) {
+  std::shared_lock rd_lock(rwMutx);
+
+  entry* e = searchEntry(key);
+  if (e == nullptr) {
+    pmError_tls.notfound();
+    return -1;
+  }
+  *value = e->value;
+  pmError_tls.success();
   return 0;
 }
 
@@ -440,12 +470,13 @@ int pmLinHash::search(const uint64_t& key, uint64_t& value) {
  */
 int pmLinHash::remove(const uint64_t& key) {
   std::unique_lock wr_lock(rwMutx);
+
   // you should find its previous table
   pm_table* pre = nullptr;
   uint64_t pos;
   pm_table* t = searchEnteyWithPage(key, &pos, &pre);
   if (t == nullptr) {
-    pmError.set(NotFoundErr);
+    pmError_tls.notfound();
     return -1;
   }
 
@@ -466,6 +497,7 @@ int pmLinHash::remove(const uint64_t& key) {
   }
   pmem_persist(start_addr, FILE_SIZE);
 
+  pmError_tls.success();
   return 0;
 }
 
@@ -480,11 +512,14 @@ int pmLinHash::update(const uint64_t& key, const uint64_t& value) {
 
   entry* e = searchEntry(key);
   if (e == nullptr) {
+    pmError_tls.notfound();
     return -1;
   }
 
   e->value = value;
   pmem_persist(e, sizeof(entry));
+
+  pmError_tls.success();
   return 0;
 }
 
@@ -526,7 +561,7 @@ int pmLinHash::clear() {
  * @return
  */
 int pmLinHash::showConfig() {
-  printf("=========PMLHash Config=======\n");
+  printf("=========PMLHash Config=========\n");
   printf("- start_addr:%p\n", start_addr);
   printf("- overflow_addr:%p\n", overflow_addr);
   printf("- meta_addr:%p\n", meta);
@@ -535,7 +570,7 @@ int pmLinHash::showConfig() {
   printf("- table_addr:%p\n", table_arr);
   showKV("  - ");
   printf("- bitmap_addr:%p\n", bitmap);
-  printf("=========Init Config=======\n");
+  printf("=========Init Config=========\n");
   printf("TABLE_SIZE:%d\n", TABLE_SIZE);
   printf("HASH_SIZE:%d\n", HASH_SIZE);
   printf("FILE_SIZE:%d\n", FILE_SIZE);
@@ -545,7 +580,7 @@ int pmLinHash::showConfig() {
   printf("N_0:%d\n", N_0);
   printf("[Support at least %zu KVs <not include overflowTable>]\n",
          TABLE_SIZE * NORMAL_TAB_SIZE);
-  printf("===========Config OK==========\n");
+  printf("===========Config OK============\n");
   return 0;
 }
 
@@ -554,7 +589,7 @@ int pmLinHash::showConfig() {
  * @param prefix the prefix string in front of every bucket
  * @return
  */
-int pmLinHash::showKV(const char* prefix = "") {
+int pmLinHash::showKV(const char* prefix) {
   printf("===========Table View=========\n");
   for (size_t i = 0; i < meta->size; i++) {
     pm_table* t = getNmTableFromIdx(i);
@@ -581,7 +616,7 @@ int pmLinHash::showKV(const char* prefix = "") {
 
 /**
  * @brief print bitmap, used in test
- * @return 
+ * @return
  */
 int pmLinHash::showBitMap() {
   printf("%s\n", bitmap->to_string().c_str());

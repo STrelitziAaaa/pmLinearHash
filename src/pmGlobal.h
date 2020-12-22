@@ -8,7 +8,7 @@
 #ifndef __PMGLOBAL_H__
 #define __PMGLOBAL_H__
 
-#define TABLE_SIZE 1                                // adjustable
+#define TABLE_SIZE 16                                // adjustable
 #define HASH_SIZE 16                                // adjustable
 #define FILE_SIZE 1024 * 1024 * 16                  // 16 MB adjustable
 #define BITMAP_SIZE 1024 * 1024 / sizeof(pm_table)  // for gc of overflowT

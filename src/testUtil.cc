@@ -1,4 +1,4 @@
-#include "util.h"
+#include "testUtil.h"
 
 using namespace std;
 
@@ -300,12 +300,13 @@ int TestMultiThread(pmLinHash* f) {
 int AssertTEST(pmLinHash* f) {
   // the allowable size is between 300000 and 400000,
   // otherwise trigger memory size limit
-  const int N = 300000;
+  const int N = 10000;
   const int ASSERT_STEP = 5000;
 
-  printf("=========Assert Test==========\n");
+  printf("===========Assert Test==========\n");
   printf("TEST %d KVs\n", N);
   printf("Check Empty Env...\n");
+  f->clear();
   for (uint64_t i = 0; i < N; i++) {
     uint64_t value;
     assert(f->search(i, value) == -1);
@@ -360,7 +361,7 @@ int AssertTEST(pmLinHash* f) {
     assert(f->search(i, value) == -1);
   }
 
-  printf("=========Assert OK============\n");
+  printf("===========Assert OK============\n");
   return 0;
 }
 
@@ -372,7 +373,6 @@ int AssertTEST(pmLinHash* f) {
  * @return 
  */
 int BenchmarkYCSB(pmLinHash* f, uint64_t n_thread, string path_prefix) {
-  printf("=========YCSB Benchmark=======\n");
   printf("注:时间基本为纯Insert/Search时间,不包括读文件\tn_thread=%zu\n",
          n_thread);
   f->clear();
@@ -396,7 +396,6 @@ int BenchmarkYCSB(pmLinHash* f, uint64_t n_thread, string path_prefix) {
   runYCSBBenchmark(path_prefix + "./benchmark/10w-rw-100-0-load.txt", f,
                    n_thread);
   f->clear();
-  printf("==========Benchmark OK=========\n");
   return 0;
 }
 
