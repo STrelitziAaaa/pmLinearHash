@@ -1,6 +1,7 @@
 #include "pmLinHash.h"
 #include "pmUtil.h"
 #include "testUtil.h"
+
 #define PMDEBUG
 
 int main() {
@@ -24,8 +25,9 @@ int main() {
   printf("-----------Assert Test ---------\n");
   AssertTEST(f);
   printf("-----------Assert Test OK-------\n");
+  f->clear();
   //
   printf("=========YCSB Benchmark=========\n");
-  BenchmarkYCSB(f, 4, "../");
+  BenchmarkYCSB(f, 1, "../");
   printf("==========Benchmark OK===========\n");
 }

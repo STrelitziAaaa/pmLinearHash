@@ -17,6 +17,7 @@
     - [CRUD](#crud)
     - [GC](#gc)
     - [MultiThread](#multithread)
+    - [Scheduler](#scheduler)
     - [Doc](#doc)
   - [单线程YCSB性能测试](#单线程ycsb性能测试)
   - [多线程YCSB性能测试](#多线程ycsb性能测试)
@@ -411,7 +412,8 @@ make
   std::unique_lock wr_lock(rwMutx);
   std::shared_lock rd_lock(rwMutx);
   ```
-
+### Scheduler
+- 切换到scheduler分支查看,采用类似C/S架构,中间通过一个无锁队列通信,客户端的并行在服务端被串化
 ### Doc
 为每一个函数都添加了注释文档
 
