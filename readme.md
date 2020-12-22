@@ -1,4 +1,4 @@
-<img align="right" src="./static/db_logo.png" width=110px/>
+<img align="right" src="./static/db_logo.png" width=130px/>
 
 # pmLinearHash
 ![](https://img.shields.io/badge/pmLinearHash-v0.1-519dd9.svg) ![](https://img.shields.io/badge/platform-linux-lightgray.svg) ![](https://img.shields.io/badge/c++-std=c++17-blue.svg) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)  
@@ -13,6 +13,8 @@
   - [Intro](#intro)
   - [Env Config](#env-config)
     - [NVM](#nvm)
+      - [Configure pmem](#configure-pmem)
+      - [Init FS & Mount](#init-fs--mount)
     - [PMDK](#pmdk)
   - [Build&Run](#buildrun)
   - [Feature](#feature)
@@ -27,7 +29,6 @@
     - [About MultiThread](#about-multithread)
   - [Concurrency safe](#concurrency-safe)
     - [Fine-grained mutex](#fine-grained-mutex)
-  - [Unsolved questions](#unsolved-questions)
 
 <!-- /TOC -->
 ## Todo
@@ -56,7 +57,25 @@ Here we will implement `Linear Hashing`
 
 ## Env Config
 ### NVM
-- todo
+#### Configure pmem
+1. 首先查看系统虚拟地址空间,找出usable的区间,并计算大小
+  ![](static/2020-12-21-17-36-48.png)
+2. 设置 `GNU Bootloader` 文件  
+  `sudo vim /etc/default/grub`
+  ![](static/2020-12-21-17-43-34.png)
+3. 更新 `grub`,并重启  
+  `sudo update-grub` , `reboot`
+4. 成功配置普通内存为pmem
+  ![](static/2020-12-21-17-58-12.png)
+  `sudo fdisk -l`
+  ![](static/2020-12-21-19-32-16.png) 
+
+#### Init FS & Mount
+1. 首先使用 `mkfs.ext4` 在pmem上格式化文件系统ext4
+2. 在/mnt/创建 `mkdir` 要挂载到的文件夹
+3. 使用 `mount -o dax` 指令挂载
+  ![](static/2020-12-21-18-03-17.png)
+
 ### PMDK
 - Install
   - `sudo apt install libpmem-dev`
@@ -72,7 +91,7 @@ cd build
 cmake ..
 make
 cd ../bin
-./pmlhash
+./pmLinHash
 ```
 
 ## Feature
@@ -587,6 +606,3 @@ run .././benchmark/10w-rw-100-0-load.txt        WTime: 83.637800ms      OPS: 1.1
       - 一般的解决方法是延时删除,简单将对应删除位置1,保证临近的update仍然访问到这个键值.后续在定时gc中锁全表,真正删除键值
   - Remove
     - 也许可以延时删除
-## Unsolved questions
-- 如果a.cc文件需要引入一个头文件<unistd.h>,而a.h不需要,那么应该在a.cc还是a.h引入呢?
-  - 目前的做法是在a.h引入,这样a.cc只需要引入"a.h"即可,比较干净
