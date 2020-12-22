@@ -6,9 +6,6 @@
 
 using namespace std;
 
-// #define cas(addr, oldval, newval) \
-//   atomic_compare_exchange_weak(&addr, &oldval, newval)
-
 #define cas(a, b, c) __sync_bool_compare_and_swap(a, b, c)
 
 template <typename T>

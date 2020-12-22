@@ -1,27 +1,19 @@
-#include "pmLinHash.h"
-#include "util.h"
+#include "../src/pmLinHash.h"
+#include "../src/scheduler/scheduler.h"
+#include "testUtil.h"
 
-// g++ pml_hash_testing.cc pml_hash.cc util.cc -o pml_hash_testing -lpmem
-// -lpthread
+// g++ benchmark.cc util.cc ../src/pmLinHash.cc ../src/pmComponent.cc
+// ../src/pmError.cc  -o benchmark -lpthread -std=c++17 -lpmem
 
+constexpr int n_thread = 4;
+#define PMDEBUG
 int main() {
-  // you have to return the original object,instead of use `=` in
-  // TestHashConstruct(&f) because it will call `unmap` if it die;
-  pmLinHash* f = TestHashConstruct();
-  // AssertTEST(f);
-  f->clear();
-  printf("-----------Clear All----------\n");
-  TestHashInsert(f);
-  TestHashSearch(f);
-  TestHashUpdate(f);
-  TestHashRemove(f);
-  // f->showBitMap();
-  // f->showKV();
-  // f->showBitMap();
-  // justInsertN(f, 10, 5);
+  pmLinHash f("./tmp");
+  scheduler sched(&f, n_thread);
+  thread server([&sched] { sched.RunAndServe(); });
 
-  // TestMultiThread(f);
-
-  // BenchmarkYCSB(f, 4, "../");
-  delete f;
+  thread client1([&sched] { AssertTEST(&sched); });
+  client1.join();
+  BenchmarkYCSBwithScheduler(&sched, n_thread, "../");
+  server.join();
 }

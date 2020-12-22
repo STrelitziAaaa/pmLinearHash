@@ -30,10 +30,18 @@ class pmError {
  public:
   pmError() : errNo_(Err_Success) {}
   pmError(const pmError& rhs) { errNo_ = rhs.errNo_; }
-  pmError& operator=(const pmError& rhs) { errNo_ = rhs.errNo_; }
+  pmError& operator=(const pmError& rhs) {
+    errNo_ = rhs.errNo_;
+    return *this;
+  }
   void set(pmErrno errNo) { errNo_ = errNo; }
   void set(const pmError& rhs) { errNo_ = rhs.errNo_; }
-  void success() { errNo_ = Err_Success; }
+  void success() { set(Err_Success); }
+  void notfound() { set(Err_NotFoundErr); }
+  void dupkey() { set(Err_DupKeyErr); }
+  void NmmemoryLimit() { set(Err_NmMemoryLimitErr); }
+  void OfmemoryLimit() { set(Err_OfMemoryLimitErr); }
+
   void perror(std::string str) {
     std::cout << str << " :" << string() << std::endl;
   }

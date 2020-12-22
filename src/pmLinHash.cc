@@ -32,8 +32,10 @@ pmLinHash::pmLinHash(const char* file_path) {
   if (fileExists) {
 // recover
 #ifdef PMDEBUG
+    printf("debug: init()\n");
     initMappedMem();
 #else
+    printf("debug: recover()\n");
     recoverMappedMen();
 #endif
   } else {
@@ -108,7 +110,7 @@ pm_table* pmLinHash::newOverflowTable(pm_table* pre) {
     // after throw this msg, the db may still can insert other kv, but we still
     // view it as full
     // we just throw error,instead of returning nullptr
-    pmError_tls.set(Err_OfMemoryLimitErr);
+    pmError_tls.OfmemoryLimit();
     throw "newOverflowTable: memory size limit";
   }
   bitmap->set(offset);
@@ -149,7 +151,7 @@ int pmLinHash::freeOverflowTable(pm_table* t) {
  */
 pm_table* pmLinHash::newNormalTable() {
   if (meta->size >= NORMAL_TAB_SIZE) {
-    pmError_tls.set(Err_NmMemoryLimitErr);
+    pmError_tls.NmmemoryLimit();
     throw "newNormalTable: memory size limit";
   }
   pm_table* table = (pm_table*)(table_arr + meta->size);
@@ -397,10 +399,8 @@ pm_table* pmLinHash::searchEnteyWithPage(const uint64_t& key,
  * @return return -1 if full, 0 if success
  */
 int pmLinHash::insert(const uint64_t& key, const uint64_t& value) {
-  std::unique_lock wr_lock(rwMutx);
-
   if (searchEntry(key) != nullptr) {
-    pmError_tls.set(Err_DupKeyErr);
+    pmError_tls.dupkey();
     return -1;
   }
 
@@ -409,11 +409,14 @@ int pmLinHash::insert(const uint64_t& key, const uint64_t& value) {
                      entry::makeEntry(key, value))) {
       split();
     }
-  } catch (...) {
+  } catch (const char* msg) {
+    printf("%s\n", msg);
     pmError_tls.perror("insert");
+    exit(EXIT_FAILURE);
     return -1;
   }
   pmem_persist(start_addr, FILE_SIZE);
+
   pmError_tls.success();
   return 0;
 }
@@ -426,13 +429,13 @@ int pmLinHash::insert(const uint64_t& key, const uint64_t& value) {
  * @return return -1 if not found ; 0 if success
  */
 int pmLinHash::search(const uint64_t& key, uint64_t& value) {
-  std::shared_lock rd_lock(rwMutx);
-
   entry* e = searchEntry(key);
   if (e == nullptr) {
+    pmError_tls.notfound();
     return -1;
   }
   value = e->value;
+
   pmError_tls.success();
   return 0;
 }
@@ -444,10 +447,9 @@ int pmLinHash::search(const uint64_t& key, uint64_t& value) {
  * @return return -1 if not found ; 0 if success
  */
 int pmLinHash::search(const uint64_t& key, uint64_t* value) {
-  std::shared_lock rd_lock(rwMutx);
-
   entry* e = searchEntry(key);
   if (e == nullptr) {
+    pmError_tls.notfound();
     return -1;
   }
   *value = e->value;
@@ -461,13 +463,12 @@ int pmLinHash::search(const uint64_t& key, uint64_t* value) {
  * @return return -1 if not found, 0 if success
  */
 int pmLinHash::remove(const uint64_t& key) {
-  std::unique_lock wr_lock(rwMutx);
   // you should find its previous table
   pm_table* pre = nullptr;
   uint64_t pos;
   pm_table* t = searchEnteyWithPage(key, &pos, &pre);
   if (t == nullptr) {
-    pmError_tls.set(Err_NotFoundErr);
+    pmError_tls.notfound();
     return -1;
   }
 
@@ -487,6 +488,7 @@ int pmLinHash::remove(const uint64_t& key) {
     pre->next_offset = NEXT_IS_NONE;
   }
   pmem_persist(start_addr, FILE_SIZE);
+
   pmError_tls.success();
   return 0;
 }
@@ -498,15 +500,16 @@ int pmLinHash::remove(const uint64_t& key) {
  * @return -1 if not found , 0 if success
  */
 int pmLinHash::update(const uint64_t& key, const uint64_t& value) {
-  std::unique_lock wr_lock(rwMutx);
-
   entry* e = searchEntry(key);
   if (e == nullptr) {
+    pmError_tls.notfound();
     return -1;
   }
 
   e->value = value;
   pmem_persist(e, sizeof(entry));
+
+  pmError_tls.success();
   return 0;
 }
 

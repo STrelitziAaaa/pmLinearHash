@@ -1,9 +1,9 @@
 <img align="right" src="./static/db_logo.png" width=130px/>
 
 # pmLinearHash
-![](https://img.shields.io/badge/pmLinearHash-v0.1-519dd9.svg) ![](https://img.shields.io/badge/platform-linux-lightgray.svg) ![](https://img.shields.io/badge/c++-std=c++17-blue.svg) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)  
+![](https://img.shields.io/badge/pmLinearHash-v0.1-519dd9.svg) ![](https://img.shields.io/badge/platform-linux-lightgray.svg) ![](https://img.shields.io/badge/c++-std=c++11-blue.svg) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)  
 :rocket: This is an inplementation of [2020-Fall-DBMS-Project](https://github.com/ZhangJiaQiao/2020-Fall-DBMS-Project)  
-> This branch is simply using rw-mutex
+> This branch is using scheduler
 
 ## TOC
 <!-- TOC -->
@@ -17,6 +17,7 @@
     - [CRUD](#crud)
     - [GC](#gc)
     - [MultiThread](#multithread)
+    - [Scheduler](#scheduler)
     - [Doc](#doc)
   - [单线程YCSB性能测试](#单线程ycsb性能测试)
   - [多线程YCSB性能测试](#多线程ycsb性能测试)
@@ -412,7 +413,23 @@ cd ../bin
   std::unique_lock wr_lock(rwMutx);
   std::shared_lock rd_lock(rwMutx);
   ```
+### Scheduler
+- 通过scheduler将到来的请求串行处理,通过一个无锁队列实现请求的串化
+  - 工作线程向队列发送数据,服务线程消费数据,根据操作类型执行对应的操作,并将结果返回给工作线程
+- 结果: 速度奇慢,第一个YCSB的10万条记录都进去后就触发了memory size limit,且耗时60s,而实际内存是够的,猜测还是代码出了bug
+- Example
+  ```cpp
+  int main() {
+    pmLinHash f("./tmp");
+    scheduler sched(&f, n_thread);
+    thread server([&sched] { sched.RunAndServe(); });
 
+    thread client1([&sched] { AssertTEST(&sched); });
+    client1.join();
+    BenchmarkYCSBwithScheduler(&sched, n_thread, "../");
+    server.join();
+  }
+  ```
 ### Doc
 为每一个函数都添加了注释文档
 

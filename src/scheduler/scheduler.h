@@ -12,6 +12,7 @@
 #ifdef PMDEBUG
 #undef PMDEBUG
 #endif
+// #define PMDEBUG
 
 enum TASK_OP { OP_SEARCH = 1, OP_INSERT, OP_UPDATE, OP_REMOVE, OP_INIT };
 
@@ -47,7 +48,7 @@ struct taskItem {
   void signal() { sem_post(preparing); };
 
   // ! note: u must never define destruct function
-  int destroy() {
+  void destroy() {
     free(preparing);
     delete (error);
   }
@@ -57,15 +58,17 @@ struct taskItem {
 
 class scheduler {
  private:
-  syncQueue<taskItem> chan;
-  // boost::lockfree::queue<taskItem, boost::lockfree::fixed_sized<false> > chan;
   pmLinHash* f;
+  syncQueue<taskItem> chan;
+  // boost::lockfree::queue<taskItem, boost::lockfree::fixed_sized<false> >
+  // chan;
   atomic<int> notDone;
 
  public:
   scheduler(pmLinHash* f, int n_thread)
       : f(f), chan(10000), notDone(n_thread) {}
   int RunAndServe() {
+    printf("Server Run\n");
     while (1) {
       taskItem item;
       while (!chan.pop(item)) {
@@ -74,6 +77,8 @@ class scheduler {
         }
       };
       switch (item.op) {
+        case OP_INIT:
+          break;
         case OP_INSERT:
           f->insert(item.key, *(item.value));
           break;
@@ -94,9 +99,20 @@ class scheduler {
       item.signal();
     }
   }
-  int Do(TASK_OP op, const uint64_t& key, uint64_t* value) {
+
+  /**
+   * @brief
+   * @param op op: search , remove
+   * @param key
+   * @param value value will be rewritten
+   * @return -1 if fail, 0 if success
+   */
+  int Do(TASK_OP op, const uint64_t& key, uint64_t* value = nullptr) {
+    if (value == nullptr) {
+      assert(op == OP_REMOVE);
+    }
+
     taskItem item(op, key, value);
-    // todo: fix it!
     defer guard([&item] { item.destroy(); });
 
     while (!chan.push(item)) {
@@ -111,7 +127,30 @@ class scheduler {
     return pmError_tls.hasError() ? -1 : 0;
   }
 
-  int Done() { notDone--; }
+  /**
+   * @brief
+   * @param op op: insert , update
+   * @param key
+   * @param value
+   * @return
+   */
+  int Do(TASK_OP op, const uint64_t& key, const uint64_t& value) {
+    return Do(op, key, &const_cast<uint64_t&>(value));
+  }
+
+  int insert(const uint64_t& key, const uint64_t& value) {
+    return Do(OP_INSERT, key, value);
+  }
+  int search(const uint64_t& key, uint64_t* value) {
+    return Do(OP_SEARCH, key, value);
+  }
+  int update(const uint64_t& key, const uint64_t& value) {
+    return Do(OP_UPDATE, key, value);
+  }
+  int remove(const uint64_t& key) { return Do(OP_REMOVE, key); }
+
+  int Done() { return notDone--; }
+  int doClear() { return f->clear(); }
 };
 
 // class scheduler {

@@ -7,6 +7,7 @@
 #include <vector>
 #include "pmComponent.h"
 #include "pmGlobal.h"
+#include "pmUtil.h"
 
 using namespace std;
 
@@ -18,8 +19,6 @@ class pmLinHash {
   metadata* meta;       // virtual address of metadata
   pm_table* table_arr;  // virtual address of hash table array
   bitmap_st* bitmap;    // for gc
-
-  std::shared_mutex rwMutx;
 
   void split();
   uint64_t hashFunc(const uint64_t& key, const size_t& hash_size);
