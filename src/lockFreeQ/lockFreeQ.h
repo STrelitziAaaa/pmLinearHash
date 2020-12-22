@@ -1,6 +1,8 @@
 #ifndef __LOCKFREEQ_H__
 #define __LOCKFREEQ_H__
 
+// partly copied from https://coolshell.cn/articles/8239.html
+
 // #include <atomic>
 #include <thread>
 

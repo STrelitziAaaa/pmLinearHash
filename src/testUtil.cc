@@ -270,8 +270,8 @@ int TestMultiThread(pmLinHash* f) {
 int AssertTEST(scheduler* sched) {
   // the allowable size is between 300000 and 400000,
   // otherwise trigger memory size limit
-  const int N = 200000;
-  const int ASSERT_STEP = 5000;
+  const int N = 100000;
+  const int ASSERT_STEP = 10000;
 
   printf("=========Assert Test==========\n");
   printf("TEST %d KVs\n", N);

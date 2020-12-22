@@ -2,7 +2,7 @@
 #define __SCHEDULER_H__
 
 #include <atomic>
-#include <boost/lockfree/queue.hpp>
+// #include <boost/lockfree/queue.hpp>
 #include "../lockFreeQ/lockFreeQ.h"
 #include "../pmError.h"
 #include "../pmLinHash.h"
@@ -42,6 +42,10 @@ struct taskItem {
     sem_init(preparing, 0, 0);
     error = new pmError();
   }
+  // let the following be default, it is what boost::lockfree::queue needed
+  // ~taskItem() = default;
+  // taskItem& operator=(const taskItem& rhs) = default;
+
   void setError(const pmError& rhs) { *error = rhs; }
   const pmError& getError() { return *error; }
   void wait() { sem_wait(preparing); };

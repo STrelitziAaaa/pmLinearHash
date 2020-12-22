@@ -558,7 +558,7 @@ int pmLinHash::showConfig() {
   printf("  - size:%zu level:%zu next:%zu overflow_num:%zu\n", meta->size,
          meta->level, meta->next, meta->overflow_num);
   printf("- table_addr:%p\n", table_arr);
-  showKV("  - ");
+  // showKV("  - ");
   printf("- bitmap_addr:%p\n", bitmap);
   printf("=========Init Config=======\n");
   printf("TABLE_SIZE:%d\n", TABLE_SIZE);
