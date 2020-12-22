@@ -1,7 +1,7 @@
 #include "pmLinHash.h"
-#include "util.h"
-
-thread_local pm_err pmError;
+#include <errno.h>
+#include <map>
+#include "pmUtil.h"
 
 /**
  * @brief construct function of pmLinHash
@@ -31,9 +31,10 @@ pmLinHash::pmLinHash(const char* file_path) {
 
   if (fileExists) {
 // recover
-#define DEBUG
-#ifdef DEBUG
+#ifdef PMDEBUG
     initMappedMem();
+#else
+    recoverMappedMen();
 #endif
   } else {
     // init
@@ -107,8 +108,8 @@ pm_table* pmLinHash::newOverflowTable(pm_table* pre) {
     // after throw this msg, the db may still can insert other kv, but we still
     // view it as full
     // we just throw error,instead of returning nullptr
-    pmError.set(OfMemoryLimitErr);
-    throw Error("newOverflowTable: memory size limit");
+    pmError_tls.set(Err_OfMemoryLimitErr);
+    throw "newOverflowTable: memory size limit";
   }
   bitmap->set(offset);
   pm_table* table = (pm_table*)((pm_table*)overflow_addr + offset);
@@ -148,8 +149,8 @@ int pmLinHash::freeOverflowTable(pm_table* t) {
  */
 pm_table* pmLinHash::newNormalTable() {
   if (meta->size >= NORMAL_TAB_SIZE) {
-    pmError.set(NmMemoryLimitErr);
-    throw Error("newNormalTable: memory size limit");
+    pmError_tls.set(Err_NmMemoryLimitErr);
+    throw "newNormalTable: memory size limit";
   }
   pm_table* table = (pm_table*)(table_arr + meta->size);
   table->init();
@@ -399,7 +400,7 @@ int pmLinHash::insert(const uint64_t& key, const uint64_t& value) {
   std::unique_lock wr_lock(rwMutx);
 
   if (searchEntry(key) != nullptr) {
-    pmError.set(DupKeyErr);
+    pmError_tls.set(Err_DupKeyErr);
     return -1;
   }
 
@@ -408,16 +409,18 @@ int pmLinHash::insert(const uint64_t& key, const uint64_t& value) {
                      entry::makeEntry(key, value))) {
       split();
     }
-  } catch (Error& e) {
-    pmError.perror("insert");
+  } catch (...) {
+    pmError_tls.perror("insert");
     return -1;
   }
   pmem_persist(start_addr, FILE_SIZE);
+  pmError_tls.success();
   return 0;
 }
 
 /**
- * @brief search
+ * @brief deprecated: use pmLinHash::search(const uint64_t& key,
+ * uint64_t* value) instead
  * @param key
  * @param value the value will be rewritten
  * @return return -1 if not found ; 0 if success
@@ -430,6 +433,25 @@ int pmLinHash::search(const uint64_t& key, uint64_t& value) {
     return -1;
   }
   value = e->value;
+  pmError_tls.success();
+  return 0;
+}
+
+/**
+ * @brief search
+ * @param key
+ * @param value the value will be rewritten
+ * @return return -1 if not found ; 0 if success
+ */
+int pmLinHash::search(const uint64_t& key, uint64_t* value) {
+  std::shared_lock rd_lock(rwMutx);
+
+  entry* e = searchEntry(key);
+  if (e == nullptr) {
+    return -1;
+  }
+  *value = e->value;
+  pmError_tls.success();
   return 0;
 }
 
@@ -445,7 +467,7 @@ int pmLinHash::remove(const uint64_t& key) {
   uint64_t pos;
   pm_table* t = searchEnteyWithPage(key, &pos, &pre);
   if (t == nullptr) {
-    pmError.set(NotFoundErr);
+    pmError_tls.set(Err_NotFoundErr);
     return -1;
   }
 
@@ -465,7 +487,7 @@ int pmLinHash::remove(const uint64_t& key) {
     pre->next_offset = NEXT_IS_NONE;
   }
   pmem_persist(start_addr, FILE_SIZE);
-
+  pmError_tls.success();
   return 0;
 }
 
@@ -554,7 +576,7 @@ int pmLinHash::showConfig() {
  * @param prefix the prefix string in front of every bucket
  * @return
  */
-int pmLinHash::showKV(const char* prefix = "") {
+int pmLinHash::showKV(const char* prefix) {
   printf("===========Table View=========\n");
   for (size_t i = 0; i < meta->size; i++) {
     pm_table* t = getNmTableFromIdx(i);
@@ -581,7 +603,7 @@ int pmLinHash::showKV(const char* prefix = "") {
 
 /**
  * @brief print bitmap, used in test
- * @return 
+ * @return
  */
 int pmLinHash::showBitMap() {
   printf("%s\n", bitmap->to_string().c_str());

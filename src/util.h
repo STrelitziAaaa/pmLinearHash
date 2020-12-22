@@ -28,6 +28,7 @@ using namespace std;
 static map<std::string, uint64_t> TypeDict = {{"INSERT", INSERT},
                                               {"READ", SEARCH}};
 
+// deprecated: use String deirectly
 class Error : public exception {
  private:
   std::string msg;
@@ -47,8 +48,6 @@ class Error : public exception {
         __FILE__, __LINE__, __FUNCTION__, ##__VA_ARGS__); \
     assert(0);                                            \
   } while (0);
-
-int chkAndCrtFile(const char* filePath);
 
 int TestMultiThread(pmLinHash* f);
 int TestBitMap(pmLinHash* f);

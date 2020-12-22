@@ -56,6 +56,7 @@ class pmLinHash {
 
   int insert(const uint64_t& key, const uint64_t& value);
   int search(const uint64_t& key, uint64_t& value);
+  int search(const uint64_t& key, uint64_t* value);
   int remove(const uint64_t& key);
   int update(const uint64_t& key, const uint64_t& value);
   int clear();
