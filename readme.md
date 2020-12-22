@@ -2,20 +2,16 @@
 
 # pmLinearHash
 ![](https://img.shields.io/badge/pmLinearHash-v0.1-519dd9.svg) ![](https://img.shields.io/badge/platform-linux-lightgray.svg) ![](https://img.shields.io/badge/c++-std=c++17-blue.svg) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)  
-:rocket: This is an inplementation of [2020-Fall-DBMS-Project](https://github.com/ZhangJiaQiao/2020-Fall-DBMS-Project)
+:rocket: This is an inplementation of [2020-Fall-DBMS-Project](https://github.com/ZhangJiaQiao/2020-Fall-DBMS-Project)  
+> This branch is simply using rw-mutex
 
 ## TOC
 <!-- TOC -->
 
 - [pmLinearHash](#pmlinearhash)
   - [TOC](#toc)
-  - [Todo](#todo)
   - [Intro](#intro)
   - [Env Config](#env-config)
-    - [NVM](#nvm)
-      - [Configure pmem](#configure-pmem)
-      - [Init FS & Mount](#init-fs--mount)
-    - [PMDK](#pmdk)
   - [Build&Run](#buildrun)
   - [Feature](#feature)
     - [CRUD](#crud)
@@ -29,11 +25,14 @@
     - [About MultiThread](#about-multithread)
   - [Concurrency safe](#concurrency-safe)
     - [Fine-grained mutex](#fine-grained-mutex)
+  - [Appendix](#appendix)
+    - [NVM](#nvm)
+      - [Configure pmem](#configure-pmem)
+      - [Init FS & Mount](#init-fs--mount)
+    - [PMDK](#pmdk)
 
 <!-- /TOC -->
-## Todo
-- [ ] NVM环境配置
-- [ ] 进入/build编译,再进入/bin运行,过于繁琐
+
 ## Intro
 To inplement index in a DBMS, we have two main methods:
   - b/b+ tree
@@ -56,33 +55,7 @@ Here we will implement `Linear Hashing`
 
 
 ## Env Config
-### NVM
-#### Configure pmem
-1. 首先查看系统虚拟地址空间,找出usable的区间,并计算大小
-  ![](static/2020-12-21-17-36-48.png)
-2. 设置 `GNU Bootloader` 文件  
-  `sudo vim /etc/default/grub`
-  ![](static/2020-12-21-17-43-34.png)
-3. 更新 `grub`,并重启  
-  `sudo update-grub` , `reboot`
-4. 成功配置普通内存为pmem
-  ![](static/2020-12-21-17-58-12.png)
-  `sudo fdisk -l`
-  ![](static/2020-12-21-19-32-16.png) 
-
-#### Init FS & Mount
-1. 首先使用 `mkfs.ext4` 在pmem上格式化文件系统ext4
-2. 在/mnt/创建 `mkdir` 要挂载到的文件夹
-3. 使用 `mount -o dax` 指令挂载
-  ![](static/2020-12-21-18-03-17.png)
-
-### PMDK
-- Install
-  - `sudo apt install libpmem-dev`
-
-- Import
-  - `#include <libpmem.h>`
-
+[See Appendix](#appendix)
 ## Build&Run
 The Repo was built&run&tested under the following platform
 - Linux 4.19.104-microsoft-standard x86_64 GNU/Linux
@@ -606,3 +579,30 @@ run .././benchmark/10w-rw-100-0-load.txt        WTime: 83.637800ms      OPS: 1.1
       - 一般的解决方法是延时删除,简单将对应删除位置1,保证临近的update仍然访问到这个键值.后续在定时gc中锁全表,真正删除键值
   - Remove
     - 也许可以延时删除
+## Appendix
+### NVM
+#### Configure pmem
+1. 首先查看系统虚拟地址空间,找出usable的区间,并计算大小
+  ![](static/2020-12-21-17-36-48.png)
+2. 设置 `GNU Bootloader` 文件  
+  `sudo vim /etc/default/grub`
+  ![](static/2020-12-21-17-43-34.png)
+3. 更新 `grub`,并重启  
+  `sudo update-grub` , `reboot`
+4. 成功配置普通内存为pmem
+  ![](static/2020-12-21-17-58-12.png)
+  `sudo fdisk -l`
+  ![](static/2020-12-21-19-32-16.png) 
+
+#### Init FS & Mount
+1. 首先使用 `mkfs.ext4` 在pmem上格式化文件系统ext4
+2. 在/mnt/创建 `mkdir` 要挂载到的文件夹
+3. 使用 `mount -o dax` 指令挂载
+  ![](static/2020-12-21-18-03-17.png)
+
+### PMDK
+- Install
+  - `sudo apt install libpmem-dev`
+
+- Import
+  - `#include <libpmem.h>`
