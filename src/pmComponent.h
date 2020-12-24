@@ -27,7 +27,12 @@ typedef struct metadata {
 
  public:
   void init();
-  void updateNextPtr();
+  void addNextPtr(int i);
+  void addSize(int i);
+  void addLevel(int i);
+  void addOverflow(int i);
+  int add(uint64_t* addr, int i);
+  int set(uint64_t* addr, int i);
 } metadata;
 
 // data entry of hash table
@@ -38,6 +43,12 @@ typedef struct entry {
  public:
   static entry makeEntry(const uint64_t& key, const uint64_t& value) {
     return entry{key, value};
+  }
+  // pmOK
+  int setValue(const uint64_t& value) {
+    this->value = value;
+    pmem_persist(&(this->value), sizeof(uint64_t));
+    return 0;
   }
 } entry;
 
@@ -53,6 +64,10 @@ typedef struct pm_table {
   int append(const uint64_t& key, const uint64_t& value);
   int insert(const uint64_t& key, const uint64_t& value, uint64_t pos);
   int pos(const uint64_t& key);
+
+  int set(uint64_t* addr, const uint64_t& value);
+  int setNextOffset(const uint64_t& value);
+  int setFillNum(const uint64_t& value);
   entry* index(int pos);
   uint64_t getValue(int pos);
   int show();
@@ -61,11 +76,30 @@ typedef struct pm_table {
 typedef struct bitmap_st {
   std::bitset<BITMAP_SIZE> bitmap;  // 1: available 0: occupied
 
+  void setVal(int pos, bool i) {
+    bitmap.set(pos, i);
+    pmem_persist(&(bitmap[pos]), 1);
+  }
+
  public:
-  void init() { bitmap.set(); }
-  void set(int pos) { bitmap.set(pos, 0); }
-  string to_string() { return bitmap.to_string(); }
-  void reset(int pos) { bitmap.set(pos, 1); }
+  // pmOK
+  void init() {
+    bitmap.set();
+    pmem_persist(&bitmap, sizeof(std::bitset<BITMAP_SIZE>));
+  }
+
+  // pmOK
+  void set(size_t pos) { setVal(pos, 0); }
+
+  // pmOK
+  void reset(size_t pos) { setVal(pos, 1); }
+
+  std::string to_string() { return bitmap.to_string(); }
+
+  /**
+   * @brief used for new overflowtable
+   * @return return pos , BITMAP_SIZE if full
+   */
   size_t findFirstAvailable() { return bitmap._Find_first(); }
 } bitmap_st;
 
