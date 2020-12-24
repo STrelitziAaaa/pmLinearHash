@@ -154,6 +154,10 @@ class scheduler {
   int remove(const uint64_t& key) { return Do(OP_REMOVE, key); }
 
   int Done() { return notDone--; }
+  int AllDone() {
+    notDone.store(0);
+    return notDone.load();
+  }
   int doClear() { return f->clear(); }
 };
 
