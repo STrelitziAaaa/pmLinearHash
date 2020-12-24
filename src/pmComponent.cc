@@ -12,40 +12,45 @@ void metadata::init() {
 }
 
 // pmOK
-void metadata::addNextPtr(int i) {
-  add(&next, i);
+int metadata::addNext(int i) {
+  if (add(&next, i) < 0) {
+    return -1;
+  }
   if (next >= N_LEVEL(level)) {
     add(&level, 1);
     set(&next, 0);
   }
+  return 0;
 }
 // pmOK
-void metadata::addSize(int i) {
-  add(&size, i);
+int metadata::addSize(int i) {
+  return add(&size, i);
 }
 // pmOK
-void metadata::addLevel(int i) {
-  add(&level, i);
+int metadata::addLevel(int i) {
+  return add(&level, i);
 }
 // pmOK
-void metadata::addOverflow(int i) {
-  add(&overflow_num, i);
+int metadata::addOverflow(int i) {
+  return add(&overflow_num, i);
 }
 // pmOK
 int metadata::add(uint64_t* addr, int i) {
-  if (*addr + i < 0) {
-    throw "metadata.add : *addr can't be negative";
+  if ((long long int)(*addr) + i < 0) {
+    return -1;
   }
   *addr += i;
   pmem_persist(addr, sizeof(uint64_t));
+  return 0;
 }
 // pmOK
 int metadata::set(uint64_t* addr, int i) {
   if (i < 0) {
-    throw "metadata.set : *addr can't be negative";
+    return -1;
   }
   *addr = i;
   pmem_persist(addr, sizeof(uint64_t));
+  return 0;
 }
 // pmOK
 int pm_table::init() {

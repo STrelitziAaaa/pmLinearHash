@@ -8,6 +8,7 @@
 #ifndef __PMCOMPONENT_H__
 #define __PMCOMPONENT_H__
 
+#include <libpmem.h>
 #include <math.h>
 #include <memory.h>
 #include <bitset>
@@ -27,10 +28,10 @@ typedef struct metadata {
 
  public:
   void init();
-  void addNextPtr(int i);
-  void addSize(int i);
-  void addLevel(int i);
-  void addOverflow(int i);
+  int addNext(int i);
+  int addSize(int i);
+  int addLevel(int i);
+  int addOverflow(int i);
   int add(uint64_t* addr, int i);
   int set(uint64_t* addr, int i);
 } metadata;
@@ -78,7 +79,9 @@ typedef struct bitmap_st {
 
   void setVal(int pos, bool i) {
     bitmap.set(pos, i);
-    pmem_persist(&(bitmap[pos]), 1);
+    // 因为无法对bitmap[pos]取址,所以只能对bitmap取offset,
+    // 为避免虚函数指针等的干扰,使用4,使得范围大一点,尽量包含bitmap[pos]
+    pmem_persist((char*)(&bitmap) + pos / 8, 4);
   }
 
  public:

@@ -9,7 +9,6 @@ int main() {
   defer guard([&f] { delete f; });
 
   f->clear();
-  printf("-----------Clear All------------\n");
   //
   printf("-----------SimpleTest-----------\n");
   // TestHashInsert(f);
