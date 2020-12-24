@@ -14,7 +14,9 @@ int main() {
 
   thread client1([&sched] { AssertTEST(&sched); });
   client1.join();
+
   BenchmarkYCSBwithScheduler(&sched, n_thread, "../");
+  
   sched.AllDone();
   server.join();
 }

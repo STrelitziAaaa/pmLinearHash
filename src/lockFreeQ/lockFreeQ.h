@@ -1,7 +1,7 @@
 #ifndef __LOCKFREEQ_H__
 #define __LOCKFREEQ_H__
 
-// partly copied from https://coolshell.cn/articles/8239.html
+// ! partly copied from https://coolshell.cn/articles/8239.html
 
 // #include <atomic>
 #include <thread>
@@ -104,19 +104,21 @@ class syncQueue {
   // used to be compatible with boost::lockfree::queue
   syncQueue(int ignore) : head(new node<T>()), tail(head) {}
 
+  // it is blocked
   syncQueue& operator<<(const T& data) {
     enQueue(data, Q_BLOCK);
     return *this;
   }
+  // it is blocked
   syncQueue& operator>>(T& data) {
     dnQueue(data, Q_BLOCK);
     return *this;
   }
 
-  // it is blocked
+  // it is non-blocked
   bool push(const T& data) { return enQueue(data, Q_NONBLOCK); }
 
-  // it is blocked
+  // it is non-blocked
   bool pop(T& data) { return deQueue(data, Q_NONBLOCK); }
 };
 

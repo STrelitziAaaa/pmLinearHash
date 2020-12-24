@@ -43,8 +43,8 @@ struct taskItem {
     error = new pmError();
   }
   // let the following be default, it is what boost::lockfree::queue needed
-  // ~taskItem() = default;
-  // taskItem& operator=(const taskItem& rhs) = default;
+  ~taskItem() = default;
+  taskItem& operator=(const taskItem& rhs) = default;
 
   void setError(const pmError& rhs) { *error = rhs; }
   const pmError& getError() { return *error; }
@@ -64,8 +64,7 @@ class scheduler {
  private:
   pmLinHash* f;
   syncQueue<taskItem> chan;
-  // boost::lockfree::queue<taskItem, boost::lockfree::fixed_sized<false> >
-  // chan;
+  // boost::lockfree::queue<taskItem> chan;
   atomic<int> notDone;
 
  public:
