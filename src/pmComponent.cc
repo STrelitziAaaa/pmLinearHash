@@ -1,46 +1,77 @@
 #include "pmComponent.h"
+#include <libpmem.h>
 
 /**
- * @brief init metadata,just memset to zero, and size to N_0
+ * @brief pmOK: init metadata,just memset to zero, and size to N_0
  * @return (void)
  */
 void metadata::init() {
   bzero(this, sizeof(metadata));
   this->size = N_0;
+  pmem_persist(this, sizeof(metadata));
 }
 
-/**
- * @brief it will increase level, only call it after split()
- * @return (void)
- */
-void metadata::updateNextPtr() {
-  if (++next >= N_LEVEL(level)) {
-    level++;
-    next = 0;
+// pmOK
+void metadata::addNextPtr(int i) {
+  add(&next, i);
+  if (next >= N_LEVEL(level)) {
+    add(&level, 1);
+    set(&next, 0);
   }
 }
-
+// pmOK
+void metadata::addSize(int i) {
+  add(&size, i);
+}
+// pmOK
+void metadata::addLevel(int i) {
+  add(&level, i);
+}
+// pmOK
+void metadata::addOverflow(int i) {
+  add(&overflow_num, i);
+}
+// pmOK
+int metadata::add(uint64_t* addr, int i) {
+  if (*addr + i < 0) {
+    throw "metadata.add : *addr can't be negative";
+  }
+  *addr += i;
+  pmem_persist(addr, sizeof(uint64_t));
+}
+// pmOK
+int metadata::set(uint64_t* addr, int i) {
+  if (i < 0) {
+    throw "metadata.set : *addr can't be negative";
+  }
+  *addr = i;
+  pmem_persist(addr, sizeof(uint64_t));
+}
+// pmOK
 int pm_table::init() {
   bzero(this, sizeof(pm_table));
   next_offset = NEXT_IS_NONE;
+  pmem_persist(this, sizeof(pm_table));
   return 0;
 }
 
 /**
- * @brief static function used to init an array of table
+ * @brief pmOK: static function used to init an array of table
  * @param start start addr of the first table
  * @param len number of tables
  * @return  nothing
  */
 int pm_table::initArray(pm_table* start, int len) {
+  pm_table* t = start;
   for (int i = 0; i < len; i++) {
-    (start++)->init();
+    (t++)->init();
   }
+  pmem_persist(start, sizeof(pm_table) * len);
   return 0;
 }
 
 /**
- * @brief append to the end of the table, it never goes the next page
+ * @brief pmOK: append to the end of the table, it never goes the next page
  * @param key
  * @param value
  * @return return -1 if full
@@ -50,11 +81,13 @@ int pm_table::append(const uint64_t& key, const uint64_t& value) {
     return -1;
   }
   kv_arr[fill_num++] = entry::makeEntry(key, value);
+  pmem_persist(&(kv_arr[fill_num - 1]), sizeof(kv_arr[0]));
+  pmem_persist(&fill_num, sizeof(fill_num));
   return 0;
 }
 
 /**
- * @brief insert to the exact postion, it never changes fill_num
+ * @brief pmOK: insert to the exact postion, it never changes fill_num
  * @param key
  * @param value
  * @param pos
@@ -65,6 +98,7 @@ int pm_table::insert(const uint64_t& key, const uint64_t& value, uint64_t pos) {
     return -1;
   }
   kv_arr[pos] = entry::makeEntry(key, value);
+  pmem_persist(&(kv_arr[pos]), sizeof(kv_arr[0]));
   return 0;
 }
 
@@ -80,6 +114,21 @@ int pm_table::pos(const uint64_t& key) {
     }
   }
   return -1;
+}
+
+// pmOK
+int pm_table::setNextOffset(const uint64_t& value) {
+  return set(&next_offset, value);
+}
+// pmOK
+int pm_table::setFillNum(const uint64_t& value) {
+  return set(&fill_num, value);
+}
+// pmOK
+int pm_table::set(uint64_t* addr, const uint64_t& value) {
+  *addr = value;
+  pmem_persist(addr, sizeof(value));
+  return 0;
 }
 
 /**

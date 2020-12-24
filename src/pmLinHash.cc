@@ -86,7 +86,7 @@ void pmLinHash::split() {
   updateAfterSplit(oldTable, fill_num[splitOldIdx()]);
   updateAfterSplit(newTable, fill_num[splitNewIdx()]);
   // update the next of metadata
-  meta->updateNextPtr();
+  meta->addNextPtr(1);
 }
 
 /**
@@ -116,28 +116,27 @@ pm_table* pmLinHash::newOverflowTable(pm_table* pre) {
   bitmap->set(offset);
   pm_table* table = (pm_table*)((pm_table*)overflow_addr + offset);
   table->init();
-  meta->overflow_num++;
+  meta->addOverflow(1);
 
   if (pre != nullptr) {
-    pre->next_offset = offset;
+    pre->setNextOffset(offset);
   }
   return table;
 }
 
 /**
- * @brief free the table; it never change the next of the previous table
+ * @brief pmOK: free the table; it never change the next of the previous table
  * @param idx the offset regarding the first overflow table
  * @return nothing
  */
 int pmLinHash::freeOverflowTable(uint64_t idx) {
   bitmap->reset(idx);
-  meta->overflow_num--;
-  pmem_persist(&(meta->overflow_num), sizeof(uint64_t));
+  meta->addOverflow(-1);
   return 0;
 }
 
 /**
- * @brief free the table
+ * @brief pmOK: free the table
  * @param t the table addr
  * @return nothing
  */
@@ -146,7 +145,7 @@ int pmLinHash::freeOverflowTable(pm_table* t) {
 }
 
 /**
- * @brief require and init new normal table
+ * @brief pmOK: require and init new normal table
  * @return the allocated table
  */
 pm_table* pmLinHash::newNormalTable() {
@@ -156,7 +155,7 @@ pm_table* pmLinHash::newNormalTable() {
   }
   pm_table* table = (pm_table*)(table_arr + meta->size);
   table->init();
-  meta->size++;
+  meta->addSize(1);
   return table;
 }
 
@@ -263,7 +262,7 @@ int pmLinHash::appendAutoOf(pm_table* startTable, const entry& kv) {
   pm_table* cur = startTable;
   int needTosplit = 0;
   while (cur->append(kv.key, kv.value) == -1) {
-    // check if we can go through
+    // check if we can go to next
     if (cur->next_offset == NEXT_IS_NONE) {
       // cur->next_offset = meta->overflow_num;
       cur = newOverflowTable(cur);
@@ -279,7 +278,8 @@ int pmLinHash::appendAutoOf(pm_table* startTable, const entry& kv) {
 // it will allocate new overflow table OR just go through
 // it never change fill_num
 /**
- * @brief insert an entry to a bucket, it will automatically newOverflowTable
+ * @brief pmOK: insert an entry to a bucket, it will automatically
+ * newOverflowTable
  * @param startTable the table addr of the first normal table of a bucket
  * @param kv entry wait to insert
  * @param pos position wait to insert in
@@ -314,20 +314,22 @@ int pmLinHash::updateAfterSplit(pm_table* startTable, uint64_t fill_num) {
   int n_fill = fill_num / (TABLE_SIZE + 1);
   // we shouldn't go to the last overflow table
   // in case of the last overflow table becoming empty
+  pm_table* t = startTable;
   for (int i = 0; i < n_fill; i++) {
     // you must set it full because newTable.fill_num = 0
-    startTable->fill_num = TABLE_SIZE;
-    startTable = getOfTableFromIdx(startTable->next_offset);
+    t->setFillNum(TABLE_SIZE);
+    t = getOfTableFromIdx(t->next_offset);
   }
-  startTable->fill_num = fill_num % (TABLE_SIZE + 1);
-  pm_table* lastTable = startTable;
+  t->setFillNum(fill_num % (TABLE_SIZE + 1));
+  pm_table* lastTable = t;
 
+  // release tables that is not needed
   for (int i = n_fill; i < n; i++) {
-    uintptr_t idx = startTable->next_offset;
-    startTable = getOfTableFromIdx(startTable->next_offset);
+    uintptr_t idx = t->next_offset;
+    t = getOfTableFromIdx(idx);
     freeOverflowTable(idx);
   }
-  lastTable->next_offset = NEXT_IS_NONE;
+  lastTable->setNextOffset(NEXT_IS_NONE);
   return 0;
 }
 
@@ -417,7 +419,7 @@ int pmLinHash::insert(const uint64_t& key, const uint64_t& value) {
     exit(EXIT_FAILURE);
     return -1;
   }
-  pmem_persist(start_addr, FILE_SIZE);
+  // pmem_persist(start_addr, FILE_SIZE);
 
   pmError_tls.success();
   return 0;
@@ -425,7 +427,8 @@ int pmLinHash::insert(const uint64_t& key, const uint64_t& value) {
 
 /**
  * @brief deprecated: use pmLinHash::search(const uint64_t& key,
- * uint64_t* value) instead
+ * uint64_t* value) instead; It is not recommended, cuz if call search(a,b) ,u
+ * don't know b will be rewritten. but if call search(a,&b), it's obvious.
  * @param key
  * @param value the value will be rewritten
  * @return return -1 if not found ; 0 if success
@@ -459,6 +462,7 @@ int pmLinHash::search(const uint64_t& key, uint64_t* value) {
     return -1;
   }
   *value = e->value;
+
   pmError_tls.success();
   return 0;
 }
@@ -493,9 +497,8 @@ int pmLinHash::remove(const uint64_t& key) {
 
   if (--(t->fill_num) == 0 && pre != nullptr) {
     freeOverflowTable(t);
-    pre->next_offset = NEXT_IS_NONE;
+    pre->setNextOffset(NEXT_IS_NONE);
   }
-  pmem_persist(start_addr, FILE_SIZE);
 
   pmError_tls.success();
   return 0;
@@ -516,19 +519,20 @@ int pmLinHash::update(const uint64_t& key, const uint64_t& value) {
     return -1;
   }
 
-  e->value = value;
-  pmem_persist(e, sizeof(entry));
+  e->setValue(value);
 
   pmError_tls.success();
   return 0;
 }
 
 /**
- * @brief init mapped file(pmem), call it after set start_addr
+ * @brief pmOK: init mapped file(pmem), call it after set start_addr
  * @return nothing
  */
 int pmLinHash::initMappedMem() {
   bzero(start_addr, FILE_SIZE);
+  pmem_persist(start_addr, FILE_SIZE);
+
   meta->init();
   bitmap->init();
   pm_table::initArray(table_arr, N_0);
@@ -550,7 +554,6 @@ int pmLinHash::recoverMappedMen() {
  */
 int pmLinHash::clear() {
   initMappedMem();
-  pmem_persist(start_addr, FILE_SIZE);
   return 0;
 }
 
