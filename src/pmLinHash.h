@@ -24,9 +24,14 @@ class pmLinHash {
   uint64_t hashFunc(const uint64_t& key, const size_t& hash_size);
   // pm_table* newOverflowTable();
   pm_table* newOverflowTable(pm_table* pre = nullptr);
+  pm_table* newNormalTable();
+  
   int freeOverflowTable(uint64_t idx);
   int freeOverflowTable(pm_table* t);
-  pm_table* newNormalTable();
+  int freeNormalTable(uint64_t idx);
+  int freeNormalTable(pm_table* t);
+  
+
   pm_table* getNmTableFromIdx(uint64_t idx);
   pm_table* getOfTableFromIdx(uint64_t idx);
   uint64_t getIdxFromTable(pm_table* start, pm_table* t);

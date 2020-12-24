@@ -86,7 +86,7 @@ void pmLinHash::split() {
   updateAfterSplit(oldTable, fill_num[splitOldIdx()]);
   updateAfterSplit(newTable, fill_num[splitNewIdx()]);
   // update the next of metadata
-  meta->addNextPtr(1);
+  meta->addNext(1);
 }
 
 /**
@@ -142,6 +142,38 @@ int pmLinHash::freeOverflowTable(uint64_t idx) {
  */
 int pmLinHash::freeOverflowTable(pm_table* t) {
   return freeOverflowTable(getIdxFromOfTable(t));
+}
+
+/**
+ * @brief pmOK: free the bucket
+ * @param idx
+ * @return
+ */
+int pmLinHash::freeNormalTable(uint64_t idx) {
+  assert(idx == meta->size - 1);
+
+  // 保持最初的几个初始桶
+  if (meta->level == 0) {
+    return 0;
+  }
+
+  meta->addSize(-1);
+
+  // 如果 next 自减失败,即 next == 0
+  if (meta->addNext(-1) < 0) {
+    meta->set(&(meta->next), meta->size / 2 - 1);
+    meta->addLevel(-1);
+  }
+  return 0;
+}
+
+/**
+ * @brief pmOK: free the bucket
+ * @param t
+ * @return
+ */
+int pmLinHash::freeNormalTable(pm_table* t) {
+  return freeNormalTable(getIdxFromNmTable(t));
 }
 
 /**
@@ -487,12 +519,22 @@ int pmLinHash::remove(const uint64_t& key) {
     pre->insert(lastKV->key, lastKV->value, TABLE_SIZE - 1);
   }
 
-  if (--(t->fill_num) == 0 && pre != nullptr) {
+  pmError_tls.success();
+  // trival remove, just return
+  if (--(t->fill_num) != 0) {
+    return 0;
+  }
+
+  // delete overflow table
+  if (pre != nullptr) {
     freeOverflowTable(t);
     pre->setNextOffset(NEXT_IS_NONE);
   }
 
-  pmError_tls.success();
+  // delete normal table
+  if (pre == nullptr && meta->size - 1 == getIdxFromNmTable(t)) {
+    freeNormalTable(t);
+  }
   return 0;
 }
 
@@ -543,6 +585,7 @@ int pmLinHash::recoverMappedMen() {
  * @return nothing
  */
 int pmLinHash::clear() {
+  printf("-----------Clear All------------\n");
   initMappedMem();
   return 0;
 }
