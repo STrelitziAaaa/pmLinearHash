@@ -4,7 +4,10 @@
 ![](https://img.shields.io/badge/pmLinearHash-v0.1-519dd9.svg) ![](https://img.shields.io/badge/platform-linux-lightgray.svg) ![](https://img.shields.io/badge/c++-std=c++17-blue.svg) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)  
 :rocket: This is an inplementation of [2020-Fall-DBMS-Project](https://github.com/ZhangJiaQiao/2020-Fall-DBMS-Project)  
 > This branch is simply using rw-mutex
-
+- 相较于课程ddl提交时的主要改动:
+  - 修复了pmem_persist(FILE_SIZE)导致的超长延时
+  - 增加了remove()导致的shrink()
+- 拉取代码: git clone -b rw_mutex https://github.com/liwm29/pmLinearHash.git
 ## TOC
 <!-- TOC -->
 
